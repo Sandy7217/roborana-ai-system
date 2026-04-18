@@ -34,6 +34,9 @@ def get_return_context(rag_client, user_query: str):
                     f"📦 Local Return Summary:\n"
                     f"- Period: {period_text}\n"
                     f"- Date Span: {period_start or 'N/A'} → {period_end or 'N/A'}\n"
+                local_block = (
+                    f"📦 Local Return Summary:\n"
+                    f"- Period: {period_text}\n"
                     f"- Total Returns: {int(csv_summary.get('total_orders', 0)):,}\n"
                     f"- Total Quantity: {int(csv_summary.get('total_qty', 0)):,}\n"
                     f"- Total Value: ₹{float(csv_summary.get('total_value', 0)):,.2f}\n"

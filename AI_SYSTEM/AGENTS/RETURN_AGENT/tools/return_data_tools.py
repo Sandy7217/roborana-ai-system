@@ -215,6 +215,8 @@ def interpret_return_query(query: str):
         "period": period,
         "period_start": period_start_dt.date().isoformat() if pd.notna(period_start_dt) else None,
         "period_end": period_end_dt.date().isoformat() if pd.notna(period_end_dt) else None,
+        "period_start": start_dt.strftime("%Y-%m-%d"),
+        "period_end": now.strftime("%Y-%m-%d"),
         "total_orders": int(total_orders),
         "total_qty": int(total_qty),
         "total_value": round(total_value, 2),

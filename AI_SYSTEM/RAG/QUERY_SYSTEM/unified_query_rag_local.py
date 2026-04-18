@@ -90,6 +90,7 @@ class UnifiedQueryRAGLocal:
         """
         try:
             collection = self._get_existing_collection(collection_name)
+            collection = self.client.get_collection(name=collection_name)
             results = collection.query(query_texts=[query_text], n_results=n_results)
 
             docs = results.get("documents", [[]])[0] if results else []

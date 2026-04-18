@@ -287,6 +287,7 @@ class ConversationalFusionLoop:
             raw_response_text = str(raw_response) if raw_response is not None else ""
             try:
                 should_apply_emotion = _should_emotionally_process(raw_response_text)
+                should_apply_emotion = bool(raw_response_text.strip())
                 if should_apply_emotion:
                     if hasattr(agent_inst, "react_response") and callable(getattr(agent_inst, "react_response")):
                         final_response = agent_inst.react_response(raw_response_text, emotion=emotion, tone=snapshot.get("dominant_tone", "neutral"), agent_type=agent_key)
@@ -299,6 +300,11 @@ class ConversationalFusionLoop:
 
             if not final_response:
                 final_response = str(raw_response) if raw_response is not None else "⚠️ No response generated."
+            except Exception as e:
+                final_response = raw_response_text
+
+            if not isinstance(final_response, str) or not final_response.strip():
+                final_response = raw_response_text if raw_response_text.strip() else "⚠️ I could not generate a stable response. Please retry."
 
             result["final_response"] = final_response
 

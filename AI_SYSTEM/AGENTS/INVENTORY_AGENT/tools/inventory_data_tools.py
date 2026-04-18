@@ -250,9 +250,13 @@ def interpret_inventory_query(query: str, inventory_df=None):
         summary = {
             "total_skus": int(total_skus),
             "total_qty": int(total_qty),
+            "total_quantity": int(total_qty),
             "low_stock_count": len(low_stock),
+            "low_stock_items": len(low_stock),
             "over_stock_count": len(over_stock),
             "latest_file": latest_file,
+            "overstocked_items": len(over_stock),
+            "latest_file": inventory_df.attrs.get("source_file"),
             "status": "ok",
         }
 
@@ -275,4 +279,14 @@ def interpret_inventory_query(query: str, inventory_df=None):
             "latest_file": None,
             "status": "failed",
             "error": str(e),
+            "error": str(e),
+            "status": "failed",
+            "total_skus": 0,
+            "total_qty": 0,
+            "total_quantity": 0,
+            "low_stock_count": 0,
+            "low_stock_items": 0,
+            "over_stock_count": 0,
+            "overstocked_items": 0,
+            "latest_file": None,
         }
