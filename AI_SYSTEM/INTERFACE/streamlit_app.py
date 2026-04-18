@@ -13,12 +13,24 @@ os.environ["PYTHONIOENCODING"] = "utf-8"
 
 # ---------- Config ----------
 
-BASE_PATH = Path(
-    os.getenv(
-        "ROBORANA_HOME",
-        r"C:\Users\Sandeep\Desktop\roborana_ai_system\RoboRana_AI_Data"
-    )
-)
+def _resolve_base_path() -> Path:
+    env_path = os.getenv("ROBORANA_HOME")
+    if env_path:
+        return Path(env_path)
+
+    here = Path(__file__).resolve()
+    cur = here.parent
+    for _ in range(6):
+        if (cur / "AI_SYSTEM").exists():
+            return cur
+        if cur.parent == cur:
+            break
+        cur = cur.parent
+
+    return here.parent
+
+
+BASE_PATH = _resolve_base_path()
 
 OUTPUTS_DIR = BASE_PATH / "OUTPUTS"
 UPLOADS_DIR = BASE_PATH / "AI_SYSTEM" / "INTERFACE" / "UPLOADS"
@@ -94,10 +106,15 @@ def _clean_agent_output(text: str) -> str:
     if not text:
         return ""
 
-    block = re.search(r"=====.*?Response.*?=====\s*(.*)", text, re.S | re.I)
+    # Prefer explicit "Response" sections when available.
+    block = re.search(
+        r"={5,}.*?Response.*?={5,}\s*(.*?)(?:\n={5,}.*?$|\Z)",
+        text,
+        re.S | re.I | re.M
+    )
 
     if block:
-        text = block.group(1)
+        text = block.group(1).strip()
 
     drop_patterns = [
         r"^🔧.*$", r"^✅.*$", r"^🚀.*$", r"^🔍.*$", r"^📁.*$",
@@ -111,7 +128,9 @@ def _clean_agent_output(text: str) -> str:
 
     for line in text.splitlines():
 
-        if any(re.search(p, line.strip()) for p in drop_patterns):
+        stripped = line.strip()
+
+        if any(re.search(p, stripped) for p in drop_patterns):
             continue
 
         if "Enter a query" in line or "Exiting" in line:
@@ -126,18 +145,54 @@ def _clean_agent_output(text: str) -> str:
     return cleaned
 
 
+def _looks_like_fatal_error(text: str) -> bool:
+    if not text:
+        return False
+
+    checks = [
+        "Traceback",
+        "ModuleNotFoundError",
+        "ImportError",
+        "SyntaxError",
+        "FileNotFoundError",
+        "SystemExit",
+    ]
+
+    return any(c in text for c in checks)
+
+
+def _has_response_block(text: str) -> bool:
+    if not text:
+        return False
+    return bool(re.search(r"={5,}.*?Response.*?={5,}", text, re.I))
+
+
 def run_agent(agent_name, user_query, timeout=180):
+
+    # Intentionally retained for future UI diagnostics and richer failure reporting.
+    result = {
+        "ok": False,
+        "text": "",
+        "raw_output": "",
+        "error": "",
+        "return_code": None,
+    }
 
     module = AGENTS.get(agent_name)
 
     if not module:
-        return "❌ Agent not configured."
+        result["error"] = "agent_not_configured"
+        result["text"] = "❌ Agent not configured."
+        return result["text"]
 
     py = _python_bin()
 
     cmd = [py, "-m", module]
 
     env = os.environ.copy()
+    project_root = str(BASE_PATH)
+    ai_system_path = str(BASE_PATH / "AI_SYSTEM")
+    env["PYTHONPATH"] = f"{project_root};{ai_system_path};{env.get('PYTHONPATH', '')}"
     env["CLEAN_OUTPUT_MODE"] = "1"
     env["PYTHONIOENCODING"] = "utf-8"
     
@@ -158,22 +213,44 @@ def run_agent(agent_name, user_query, timeout=180):
         stdin_payload = f"{user_query}\nexit\n"
 
         out, _ = p.communicate(stdin_payload, timeout=timeout)
+        result["raw_output"] = out or ""
+        result["return_code"] = p.returncode
 
-        # ✅ Accept output even if return code is non-zero
-        if not out or not out.strip():
-            return "❌ Agent returned no output. Check logs."
+        raw_output = result["raw_output"]
+        cleaned_output = _clean_agent_output(raw_output)
+        fatal_error = _looks_like_fatal_error(raw_output)
+        has_usable_answer = bool(cleaned_output.strip())
 
-        return _clean_agent_output(out)
+        if not raw_output.strip():
+            result["error"] = "empty_output"
+            result["text"] = "❌ Agent returned no output. Check logs."
+        elif not cleaned_output.strip():
+            result["error"] = "uncleanable_output"
+            result["text"] = "⚠️ Agent produced output, but no clean answer could be extracted."
+        elif fatal_error and not cleaned_output.strip():
+            result["error"] = "startup_or_fatal_error"
+            result["text"] = "❌ Agent failed to start correctly. Please check module paths or environment setup."
+        else:
+            # Internal structured result is retained for future UI diagnostics/debug expanders.
+            # Keep useful answers, even with non-zero return codes.
+            result["ok"] = True
+            result["text"] = cleaned_output
+
+        return result["text"]
 
 
     except subprocess.TimeoutExpired:
 
-        return "⏱️ Agent timeout. Try a smaller query."
+        result["error"] = "timeout"
+        result["text"] = "⏱️ The agent took too long. Try a smaller query."
+        return result["text"]
 
 
     except Exception as e:
 
-        return f"❌ System Error: {e}"
+        result["error"] = "system_error"
+        result["text"] = f"❌ System Error: {e}"
+        return result["text"]
 
 
 def save_uploads(files):
@@ -350,10 +427,18 @@ if prompt and prompt.strip():
 
     with st.chat_message("assistant"):
 
+        loading_placeholder = st.empty()
+        loading_gif = BASE_PATH / "AI_SYSTEM" / "INTERFACE" / "loading.gif"
+
         with st.spinner("Thinking…"):
+            if loading_gif.exists():
+                loading_placeholder.image(str(loading_gif), width=120)
+            else:
+                loading_placeholder.markdown("🤖 Thinking…")
 
             reply = run_agent(agent, final_query)
 
+        loading_placeholder.empty()
         st.markdown(reply if reply else "_(no content)_")
 
 
