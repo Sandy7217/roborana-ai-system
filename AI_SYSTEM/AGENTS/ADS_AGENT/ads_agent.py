@@ -297,10 +297,27 @@ Use a professional but friendly tone.
             # Step 5️⃣ — Conversational Postprocessing
             raw_reasoning_response = response
             process_agent_output_fn = getattr(self, "process_agent_output", None)
+
             if callable(process_agent_output_fn):
                 try:
                     processed_response = process_agent_output_fn(query, response)
                     safe_print(f"DEBUG process_agent_output() type={type(processed_response)} value={repr(processed_response)[:500]}")
+
+                    if processed_response is None:
+                        safe_print("⚠️ process_agent_output returned None; using raw reasoning response.")
+                        response = raw_reasoning_response
+
+                    elif isinstance(processed_response, str) and not processed_response.strip():
+                        safe_print("⚠️ process_agent_output returned blank text; using raw reasoning response.")
+                        response = raw_reasoning_response
+
+                    else:
+                        response = processed_response
+
+                except (TypeError, AttributeError) as e:
+                    if "NoneType" in str(e) and "subscriptable" in str(e):
+                        safe_print("⚠️ Output postprocessing fallback triggered.")
+                        response = raw_reasoning_response if isinstance(raw_reasoning_response, str) else str(raw_reasoning_response)
                     if processed_response is None:
                         safe_print("⚠️ process_agent_output returned None; using raw reasoning response.")
                         response = raw_reasoning_response
