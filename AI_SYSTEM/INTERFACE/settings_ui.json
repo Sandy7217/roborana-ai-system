@@ -1,0 +1,19 @@
+{
+  "BASE_PATH": "C:\\Users\\Sandeep\\Desktop\\roborana_ai_system\\RoboRana_AI_Data",
+  "SALES_MASTER": "C:\\Users\\Sandeep\\Desktop\\roborana_ai_system\\RoboRana_AI_Data\\DATA\\SALES\\Master\\Sales_Master.csv",
+  "RETURNS_MASTER": "C:\\Users\\Sandeep\\Desktop\\roborana_ai_system\\RoboRana_AI_Data\\DATA\\RETURNS\\Master\\Return_Master_Updated.csv",
+  "INVENTORY_FILE": "C:\\Users\\Sandeep\\Desktop\\roborana_ai_system\\RoboRana_AI_Data\\DATA\\INVENTORY\\current_inventory.csv",
+  "OUTPUTS_DIR": "C:\\Users\\Sandeep\\Desktop\\roborana_ai_system\\RoboRana_AI_Data\\OUTPUTS",
+  "LOGS_DIR": "C:\\Users\\Sandeep\\Desktop\\roborana_ai_system\\RoboRana_AI_Data\\AI_SYSTEM\\MEMORY\\agent_logs",
+  "CHAT_UPLOADS_DIR": "C:\\Users\\Sandeep\\Desktop\\roborana_ai_system\\RoboRana_AI_Data\\OUTPUTS\\CHAT_UPLOADS",
+  "VENV_PY": "C:\\Users\\Sandeep\\Desktop\\roborana_ai_system\\RoboRana_AI_Data\\.venv312\\Scripts\\python.exe",
+  "AGENTS": {
+    "Manager": "AI_SYSTEM.AGENTS.MANAGER_AGENT.manager_agent",
+    "Sales": "AI_SYSTEM.AGENTS.SALES_AGENT.sales_agent",
+    "Returns": "AI_SYSTEM.AGENTS.RETURN_AGENT.return_agent",
+    "Inventory": "AI_SYSTEM.AGENTS.INVENTORY_AGENT.inventory_agent",
+    "Ads": "AI_SYSTEM.AGENTS.ADS_AGENT.ads_agent",
+    "Creative": "AI_SYSTEM.AGENTS.CREATIVE_AGENT.creative_agent"
+  },
+  "THEME": "dark"
+}

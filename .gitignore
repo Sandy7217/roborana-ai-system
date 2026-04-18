@@ -1,0 +1,15 @@
+.venv/
+.venv312/
+*.venv/
+
+__pycache__/
+*.pyc
+
+.env
+
+VECTOR_DB/
+AI_SYSTEM/RAG/VECTOR_DB/
+
+*.csv
+*.log
+MEMORY/
