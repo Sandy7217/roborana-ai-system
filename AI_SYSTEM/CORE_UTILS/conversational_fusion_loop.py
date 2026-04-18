@@ -43,6 +43,27 @@ HANDLER_CANDIDATES = [
     "handle"
 ]
 
+def _should_emotionally_process(text: str) -> bool:
+    if not isinstance(text, str):
+        return False
+    t = text.strip()
+    if not t:
+        return False
+
+    structured_markers = [
+        "###", "```", "|", "•", "-", "1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣",
+        "Spend:", "Revenue:", "ROAS", "CTR", "CPC",
+        "Ads spend was", "ROAS was", "Please tell me exactly",
+        "This looks like", "This seems related", "I could not find enough grounded"
+    ]
+    if any(marker in t for marker in structured_markers):
+        return False
+
+    if "\n" in t and any(line.strip().startswith(("-", "•", "#")) for line in t.splitlines()):
+        return False
+
+    return True
+
 
 # -----------------------------
 # Helper: Agent Loader
@@ -265,12 +286,20 @@ class ConversationalFusionLoop:
             final_response = None
             raw_response_text = str(raw_response) if raw_response is not None else ""
             try:
+                should_apply_emotion = _should_emotionally_process(raw_response_text)
                 should_apply_emotion = bool(raw_response_text.strip())
                 if should_apply_emotion:
                     if hasattr(agent_inst, "react_response") and callable(getattr(agent_inst, "react_response")):
                         final_response = agent_inst.react_response(raw_response_text, emotion=emotion, tone=snapshot.get("dominant_tone", "neutral"), agent_type=agent_key)
                     else:
                         final_response = self.emotion_reactor.react(raw_response_text, emotion=emotion, tone=snapshot.get("dominant_tone", "neutral"), agent_type=agent_key)
+                else:
+                    final_response = raw_response_text
+            except Exception as e:
+                final_response = raw_response_text
+
+            if not final_response:
+                final_response = str(raw_response) if raw_response is not None else "⚠️ No response generated."
             except Exception as e:
                 final_response = raw_response_text
 

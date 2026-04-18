@@ -223,9 +223,23 @@ def load_inventory_data(user_query: str = ""):
 # ------------------------------------------------------------
 def interpret_inventory_query(query: str, inventory_df=None):
     """Interpret user queries related to inventory (low stock, overstock, etc.)."""
+    latest_file = None
     try:
+        latest_file = get_inventory_file_for_query(query)
         if inventory_df is None:
-            inventory_df = load_inventory_data(query)
+            inventory_df = pd.read_csv(latest_file, low_memory=False, on_bad_lines="skip", quoting=1)
+            inventory_df.columns = [c.strip().lower().replace(" ", "_") for c in inventory_df.columns]
+            if "total_quantity" not in inventory_df.columns:
+                qty_keywords = ["inventory", "qty", "quantity", "stock", "avail", "closing", "balance"]
+                qty_cols = [c for c in inventory_df.columns if any(k in c for k in qty_keywords)]
+                for col in qty_cols:
+                    inventory_df[col] = pd.to_numeric(inventory_df[col], errors="coerce").fillna(0)
+                if "inventory" in inventory_df.columns:
+                    inventory_df["total_quantity"] = inventory_df["inventory"]
+                elif qty_cols:
+                    inventory_df["total_quantity"] = inventory_df[qty_cols].sum(axis=1)
+                else:
+                    inventory_df["total_quantity"] = 0
 
         total_skus = inventory_df["sku"].nunique() if "sku" in inventory_df.columns else len(inventory_df)
         total_qty = inventory_df["total_quantity"].sum()
@@ -240,6 +254,7 @@ def interpret_inventory_query(query: str, inventory_df=None):
             "low_stock_count": len(low_stock),
             "low_stock_items": len(low_stock),
             "over_stock_count": len(over_stock),
+            "latest_file": latest_file,
             "overstocked_items": len(over_stock),
             "latest_file": inventory_df.attrs.get("source_file"),
             "status": "ok",
@@ -257,6 +272,13 @@ def interpret_inventory_query(query: str, inventory_df=None):
     except Exception as e:
         print(f"⚠️ interpret_inventory_query() error: {e}")
         return {
+            "total_skus": 0,
+            "total_qty": 0,
+            "low_stock_count": 0,
+            "over_stock_count": 0,
+            "latest_file": None,
+            "status": "failed",
+            "error": str(e),
             "error": str(e),
             "status": "failed",
             "total_skus": 0,

@@ -97,6 +97,9 @@ class EmotionReactor:
         Optionally varies by agent personality.
         """
 
+        if self._should_skip_rewrite(text):
+            return text if isinstance(text, str) else str(text)
+
         text = "" if text is None else str(text)
         emotion = emotion or "neutral"
         tone = tone or self.default_tone
@@ -110,6 +113,30 @@ class EmotionReactor:
             text = self.shared_logic.adjust_personality_tone(text, agent_type or "general")
 
         # Step 3: Combine with emotional modulation
+        final_text = f"{prefix} {reaction} {text.strip()} {suffix} {emoji}".strip()
+        return " ".join(final_text.split())
+
+    def _should_skip_rewrite(self, text: str) -> bool:
+        """
+        Detect responses where emotional rewriting should be skipped.
+        """
+        if not isinstance(text, str):
+            return True
+
+        t = text.strip()
+        if not t:
+            return True
+
+        protected_markers = [
+            "###", "```", "|", "•", "1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣",
+            "Spend:", "Revenue:", "ROAS", "CTR", "CPC",
+            "Ads spend was", "ROAS was", "Please tell me exactly",
+            "This looks like", "This seems related"
+        ]
+        if any(marker in t for marker in protected_markers):
+            return True
+
+        if "\n" in t and any(line.strip().startswith(("-", "•", "#")) for line in t.splitlines()):
         if self._is_structured_or_metric_response(text):
             return text.strip()
 

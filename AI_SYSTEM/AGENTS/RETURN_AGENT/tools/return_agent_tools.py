@@ -28,6 +28,12 @@ def get_return_context(rag_client, user_query: str):
             csv_summary = interpret_return_query(user_query)
             if csv_summary and "total_orders" in csv_summary:
                 period_text = csv_summary.get("period", "unknown period")
+                period_start = csv_summary.get("period_start")
+                period_end = csv_summary.get("period_end")
+                local_block = (
+                    f"📦 Local Return Summary:\n"
+                    f"- Period: {period_text}\n"
+                    f"- Date Span: {period_start or 'N/A'} → {period_end or 'N/A'}\n"
                 local_block = (
                     f"📦 Local Return Summary:\n"
                     f"- Period: {period_text}\n"

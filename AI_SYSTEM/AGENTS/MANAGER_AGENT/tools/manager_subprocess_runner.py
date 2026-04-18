@@ -1,4 +1,5 @@
 import os, sys, subprocess
+import importlib.util
 
 # ------------------------------------------------
 # 🧩 Agent Module Map
@@ -33,6 +34,13 @@ def _find_project_root():
 
 PROJECT_ROOT = _find_project_root()
 
+def _validate_module_path(module: str) -> bool:
+    try:
+        __import__(module)
+        return True
+    except Exception:
+        return importlib.util.find_spec(module) is not None
+
 # ------------------------------------------------
 # 🚀 Agent Runner — Cross-Platform & Input-Safe
 # ------------------------------------------------
@@ -49,6 +57,14 @@ def run_agent_live(agent_key: str, query: str, python_exec: str = sys.executable
             "stdout": "",
             "stderr": f"Unknown agent '{agent_key}'",
             "module": None,
+            "code": None,
+        }
+    if not _validate_module_path(module):
+        return {
+            "ok": False,
+            "stdout": "",
+            "stderr": f"Invalid module path for agent '{agent_key}': {module}",
+            "module": module,
             "code": None,
         }
 

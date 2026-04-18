@@ -59,6 +59,13 @@ class UnifiedQueryRAGLocal:
                 return p
         return candidates[0]
 
+    def _get_existing_collection(self, collection_name: str):
+        if collection_name not in self.collections:
+            raise ValueError(
+                f"Collection '{collection_name}' not found in vector DB. Available: {self.collections}"
+            )
+        return self.client.get_collection(name=collection_name)
+
     # =========================================================
     # 🧩 Helper — List all available collections
     # =========================================================
@@ -82,6 +89,7 @@ class UnifiedQueryRAGLocal:
         Returns a dictionary with documents and metadata.
         """
         try:
+            collection = self._get_existing_collection(collection_name)
             collection = self.client.get_collection(name=collection_name)
             results = collection.query(query_texts=[query_text], n_results=n_results)
 
