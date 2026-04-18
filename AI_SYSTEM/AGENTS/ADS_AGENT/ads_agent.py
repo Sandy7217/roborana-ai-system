@@ -318,11 +318,28 @@ Use a professional but friendly tone.
                     if "NoneType" in str(e) and "subscriptable" in str(e):
                         safe_print("⚠️ Output postprocessing fallback triggered.")
                         response = raw_reasoning_response if isinstance(raw_reasoning_response, str) else str(raw_reasoning_response)
+                    if processed_response is None:
+                        safe_print("⚠️ process_agent_output returned None; using raw reasoning response.")
+                        response = raw_reasoning_response
+                    elif isinstance(processed_response, str) and not processed_response.strip():
+                        safe_print("⚠️ process_agent_output returned blank text; using raw reasoning response.")
+                        response = raw_reasoning_response
+                    else:
+                        response = processed_response
+            process_agent_output_fn = getattr(self, "process_agent_output", None)
+            if callable(process_agent_output_fn):
+                try:
+                    response = process_agent_output_fn(query, response)
+                except (TypeError, AttributeError) as e:
+                    if "NoneType" in str(e) and "subscriptable" in str(e):
+                        safe_print("⚠️ Output postprocessing fallback triggered.")
+                        response = response if isinstance(response, str) else str(response)
                     else:
                         safe_print(f"⚠️ Output postprocessing skipped: {e}")
 
             if response is None:
                 response = build_ads_fallback_summary(query, data)
+                response = "I could not generate a valid ads analysis response."
             elif isinstance(response, dict):
                 response = json.dumps(response, indent=2, default=str)
             elif not isinstance(response, str):
