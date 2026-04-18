@@ -136,194 +136,6 @@ def build_ads_fallback_summary(query, data):
     return "I could not find enough grounded ads data for this query right now. Please check whether the ads source files and RAG collections are available and up to date."
 
 
-def detect_ads_domain_scope(query: str):
-    q = (query or "").lower().strip()
-
-    ads_keywords = [
-        "ads", "ad", "campaign", "campaigns", "pla", "visibility",
-        "roas", "ctr", "cpc", "clicks", "impressions", "spend",
-        "ad spend", "ads spend", "marketing spend", "ad revenue"
-    ]
-
-    sales_keywords = [
-        "sales", "revenue", "orders", "sold", "gmv", "aov"
-    ]
-
-    inventory_keywords = [
-        "inventory", "stock", "replenish", "reorder", "stockout", "stock out"
-    ]
-
-    returns_keywords = [
-        "return", "returns", "rto", "refund", "exchange"
-    ]
-
-    finance_keywords = [
-        "profit", "margin", "payout", "settlement", "finance"
-    ]
-
-    if any(k in q for k in ads_keywords):
-        return "ads"
-    if any(k in q for k in inventory_keywords):
-        return "inventory"
-    if any(k in q for k in returns_keywords):
-        return "returns"
-    if any(k in q for k in finance_keywords):
-        return "finance"
-    if any(k in q for k in sales_keywords):
-        return "sales"
-
-    return "unknown"
-
-
-def build_ads_redirect_response(scope: str) -> str:
-    if scope == "sales":
-        return "This looks like a Sales question, not an Ads question. Please ask the Sales Agent for an accurate answer."
-    if scope == "inventory":
-        return "This looks like an Inventory question. Please ask the Inventory Agent for the right analysis."
-    if scope == "returns":
-        return "This seems related to Returns. Please ask the Returns Agent for a precise answer."
-    if scope == "finance":
-        return "This looks like a Finance question. Please ask the Finance Agent if available, or use the Manager Agent."
-    return "This does not look clearly ads-related. Please ask an ads-specific question, or use the Manager Agent for cross-functional help."
-
-
-def classify_ads_query(query: str):
-    q = (query or "").lower().strip()
-
-    if not q:
-        return {"mode": "unclear", "target": None}
-
-    broad_keywords = [
-        "summary", "full summary", "analyze", "analysis", "insights",
-        "recommendation", "recommendations", "deep dive", "performance",
-        "root cause", "overall", "all metrics", "full report"
-    ]
-
-    comparison_keywords = [
-        "compare", "vs", "versus", "difference", "better than"
-    ]
-
-    top_keywords = [
-        "top", "best", "highest", "lowest", "worst"
-    ]
-
-    metric_keywords = {
-        "spend": ["spend", "ad spend", "ads spend", "marketing spend", "cost"],
-        "revenue": ["revenue", "ad revenue", "sales from ads"],
-        "roas": ["roas", "return on ad spend"],
-        "ctr": ["ctr", "click through rate", "click-through rate"],
-        "cpc": ["cpc", "cost per click"],
-        "clicks": ["clicks", "total clicks"],
-        "impressions": ["impressions", "views"],
-        "orders": ["orders", "ad orders", "conversions"]
-    }
-
-    if any(k in q for k in broad_keywords):
-        return {"mode": "broad_summary", "target": None}
-
-    if any(k in q for k in comparison_keywords):
-        matched = []
-        for metric, keywords in metric_keywords.items():
-            if any(k in q for k in keywords):
-                matched.append(metric)
-        return {"mode": "comparison", "target": matched}
-
-    if any(k in q for k in top_keywords):
-        return {"mode": "top_item", "target": None}
-
-    matched = []
-    for metric, keywords in metric_keywords.items():
-        if any(k in q for k in keywords):
-            matched.append(metric)
-
-    if len(matched) == 1:
-        return {"mode": "single_metric", "target": matched[0]}
-
-    if len(matched) > 1:
-        return {"mode": "comparison", "target": matched}
-
-    vague_patterns = [
-        "ads",
-        "how are ads",
-        "what about ads",
-        "tell me about ads",
-        "show ads"
-    ]
-    if q in vague_patterns or len(q.split()) <= 2:
-        return {"mode": "unclear", "target": None}
-
-    return {"mode": "broad_summary", "target": None}
-
-
-def build_single_metric_response(metric: str, data: dict) -> str:
-    safe_data = data if isinstance(data, dict) else {}
-    totals = safe_data.get("totals", {}) or {}
-    period_start = safe_data.get("period_start")
-    period_end = safe_data.get("period_end")
-
-    def period_text():
-        if period_start or period_end:
-            return f" for {period_start} to {period_end}"
-        return ""
-
-    if metric == "spend":
-        return f"Ads spend was ₹{totals.get('spend', 0):,}{period_text()}."
-    if metric == "revenue":
-        return f"Ad revenue was ₹{totals.get('revenue', 0):,}{period_text()}."
-    if metric == "roas":
-        return f"ROAS was {totals.get('roas', 0)}{period_text()}."
-    if metric == "ctr":
-        return f"CTR was {totals.get('ctr', 0)}{period_text()}."
-    if metric == "cpc":
-        return f"CPC was ₹{totals.get('cpc', 0):,}{period_text()}."
-    if metric == "clicks":
-        return f"Total clicks were {totals.get('clicks', 0)}{period_text()}."
-    if metric == "impressions":
-        return f"Total impressions were {totals.get('impressions', 0)}{period_text()}."
-    if metric == "orders":
-        return f"Orders attributed to ads were {totals.get('orders', 0)}{period_text()}."
-
-    return build_ads_fallback_summary("", data)
-
-
-def build_metric_comparison_response(metrics, data: dict) -> str:
-    if not metrics:
-        return "Please tell me exactly which ads metrics you want compared, for example spend vs revenue, ROAS vs CTR, or clicks vs impressions."
-
-    safe_data = data if isinstance(data, dict) else {}
-    totals = safe_data.get("totals", {}) or {}
-    period_start = safe_data.get("period_start")
-    period_end = safe_data.get("period_end")
-
-    label_map = {
-        "spend": f"Spend: ₹{totals.get('spend', 0):,}",
-        "revenue": f"Revenue: ₹{totals.get('revenue', 0):,}",
-        "roas": f"ROAS: {totals.get('roas', 0)}",
-        "ctr": f"CTR: {totals.get('ctr', 0)}",
-        "cpc": f"CPC: ₹{totals.get('cpc', 0):,}",
-        "clicks": f"Clicks: {totals.get('clicks', 0)}",
-        "impressions": f"Impressions: {totals.get('impressions', 0)}",
-        "orders": f"Orders: {totals.get('orders', 0)}",
-    }
-
-    parts = [label_map[m] for m in metrics if m in label_map]
-
-    period_text = ""
-    if period_start or period_end:
-        period_text = f" for {period_start} to {period_end}"
-
-    if parts:
-        return f"{' | '.join(parts)}{period_text}."
-    return "I could not identify the exact ads metrics you want compared. Please rephrase your question."
-
-
-def build_ads_clarification_response() -> str:
-    return (
-        "Please tell me exactly what you want from ads data. "
-        "For example: ads spend, ROAS, CTR, revenue, clicks, impressions, orders, comparison, or full performance summary."
-    )
-
-
 # ------------------------------------------------
 # 🤖 Ads Agent (Hive Mind Aware + Human Understanding)
 # ------------------------------------------------
@@ -372,8 +184,6 @@ class AdsAgent(BaseAgent):
         rag_ctx = ""
         has_ads_data = False
         has_rag_context = False
-        domain_scope = "unknown"
-        query_info = {"mode": "unclear", "target": None}
 
         try:
             # 🧩 Step 1 — Normalize user input (Hindi/Hinglish → English, fix typos)
@@ -398,74 +208,55 @@ class AdsAgent(BaseAgent):
                 query = str(query)
 
             safe_print(f"\n🧠 New Query → {query}\n")
-            domain_scope = detect_ads_domain_scope(query)
-            if domain_scope not in ("ads", "unknown"):
-                response = build_ads_redirect_response(domain_scope)
-                safe_print(f"↪️ Out-of-domain query routed to: {domain_scope}")
 
             # Step 2️⃣ — Interpret Ad Performance Data
-            if domain_scope in ("ads", "unknown"):
-                try:
-                    data = interpret_ads_query(query)
-                    if not isinstance(data, dict):
-                        data = {}
-                        totals = {}
-                    else:
-                        totals = data.get("totals", {}) or {}
-                    has_ads_data = bool(totals)
-                    if has_ads_data:
-                        safe_print(f"🧾 Period: {data.get('period_start')} → {data.get('period_end')}")
-                        safe_print(
-                            f"💰 Spend ₹{totals.get('spend', 0):,} | 🖱️ Clicks {totals.get('clicks', 0)} | 👀 Impr {totals.get('impressions', 0)}"
-                        )
-                        safe_print(
-                            f"🛍️ Orders {totals.get('orders', 0)} | 💵 Rev ₹{totals.get('revenue', 0):,} | 📈 ROAS {totals.get('roas', 0)}\n"
-                        )
-                    else:
-                        safe_print("⚠️ No numeric data found in Ads dataset.\n")
-                except Exception as e:
+            try:
+                data = interpret_ads_query(query)
+                if not isinstance(data, dict):
                     data = {}
                     totals = {}
-                    has_ads_data = False
-                    safe_print(f"⚠️ Error generating numeric summary: {e}")
-                query_info = classify_ads_query(query)
-            else:
-                query_info = {"mode": "unclear", "target": None}
+                else:
+                    totals = data.get("totals", {}) or {}
+                has_ads_data = bool(totals)
+                if has_ads_data:
+                    safe_print(f"🧾 Period: {data.get('period_start')} → {data.get('period_end')}")
+                    safe_print(
+                        f"💰 Spend ₹{totals.get('spend', 0):,} | 🖱️ Clicks {totals.get('clicks', 0)} | 👀 Impr {totals.get('impressions', 0)}"
+                    )
+                    safe_print(
+                        f"🛍️ Orders {totals.get('orders', 0)} | 💵 Rev ₹{totals.get('revenue', 0):,} | 📈 ROAS {totals.get('roas', 0)}\n"
+                    )
+                else:
+                    safe_print("⚠️ No numeric data found in Ads dataset.\n")
+            except Exception as e:
+                data = {}
+                totals = {}
+                has_ads_data = False
+                safe_print(f"⚠️ Error generating numeric summary: {e}")
 
             # Step 3️⃣ — Context Gathering
-            if domain_scope in ("ads", "unknown"):
-                safe_print("🔍 Fetching RAG + Hive context...\n")
-                try:
-                    rag_ctx = get_ads_context(self.rag, query)
-                    if rag_ctx is None:
-                        rag_ctx = ""
-                    elif not isinstance(rag_ctx, str):
-                        rag_ctx = str(rag_ctx)
-                    rag_ctx_stripped = rag_ctx.strip()
-                    has_rag_context = bool(
-                        rag_ctx_stripped
-                        and not rag_ctx_stripped.startswith("⚠️")
-                        and not rag_ctx_stripped.startswith("No context")
-                        and not rag_ctx_stripped.startswith("No documents")
-                    )
-                except Exception as e:
-                    rag_ctx = f"⚠️ Context error: {e}"
-                    has_rag_context = False
+            safe_print("🔍 Fetching RAG + Hive context...\n")
+            try:
+                rag_ctx = get_ads_context(self.rag, query)
+                if rag_ctx is None:
+                    rag_ctx = ""
+                elif not isinstance(rag_ctx, str):
+                    rag_ctx = str(rag_ctx)
+                rag_ctx_stripped = rag_ctx.strip()
+                has_rag_context = bool(
+                    rag_ctx_stripped
+                    and not rag_ctx_stripped.startswith("⚠️")
+                    and not rag_ctx_stripped.startswith("No context")
+                    and not rag_ctx_stripped.startswith("No documents")
+                )
+            except Exception as e:
+                rag_ctx = f"⚠️ Context error: {e}"
+                has_rag_context = False
 
             hive_context = self.hive_summary
 
-            if domain_scope not in ("ads", "unknown"):
-                pass
-            elif not has_ads_data and not has_rag_context:
+            if not has_ads_data and not has_rag_context:
                 response = "I could not find enough grounded ads data for this query right now. Please check whether the ads source files and RAG collections are available and up to date."
-            elif query_info["mode"] == "unclear":
-                response = build_ads_clarification_response()
-            elif query_info["mode"] == "single_metric" and has_ads_data:
-                response = build_single_metric_response(query_info["target"], data)
-            elif query_info["mode"] == "comparison" and has_ads_data:
-                response = build_metric_comparison_response(query_info["target"], data)
-            elif query_info["mode"] == "top_item":
-                response = "Please specify what you want ranked in ads, for example top spend SKU, top ROAS SKU, highest clicks, or lowest CTR."
             else:
                 # Step 4️⃣ — Unified Reasoning Prompt
                 prompt = f"""
@@ -527,34 +318,9 @@ Use a professional but friendly tone.
                     if "NoneType" in str(e) and "subscriptable" in str(e):
                         safe_print("⚠️ Output postprocessing fallback triggered.")
                         response = raw_reasoning_response if isinstance(raw_reasoning_response, str) else str(raw_reasoning_response)
-                    if processed_response is None:
-                        safe_print("⚠️ process_agent_output returned None; using raw reasoning response.")
-                        response = raw_reasoning_response
-                    elif isinstance(processed_response, str) and not processed_response.strip():
-                        safe_print("⚠️ process_agent_output returned blank text; using raw reasoning response.")
-                        response = raw_reasoning_response
-                    else:
-                        response = processed_response
-            process_agent_output_fn = getattr(self, "process_agent_output", None)
-            if callable(process_agent_output_fn):
-                try:
-                    response = process_agent_output_fn(query, response)
-                except (TypeError, AttributeError) as e:
-                    if "NoneType" in str(e) and "subscriptable" in str(e):
-                        safe_print("⚠️ Output postprocessing fallback triggered.")
-                        response = response if isinstance(response, str) else str(response)
                     else:
                         safe_print(f"⚠️ Output postprocessing skipped: {e}")
-
-            if response is None:
-                response = build_ads_fallback_summary(query, data)
-                response = "I could not generate a valid ads analysis response."
-            elif isinstance(response, dict):
-                response = json.dumps(response, indent=2, default=str)
-            elif not isinstance(response, str):
-                response = str(response)
-            elif not response.strip():
-                response = build_ads_fallback_summary(query, data)
+            final_response = response
 
             # Step 6️⃣ — Logging
             safe_data = data if isinstance(data, dict) else {}
@@ -562,7 +328,7 @@ Use a professional but friendly tone.
                 "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 "agent": "Ads Agent",
                 "query": query,
-                "response": response[:4000],
+                "response": final_response[:4000],
                 "period_start": str(safe_data.get("period_start")),
                 "period_end": str(safe_data.get("period_end")),
             }
@@ -591,9 +357,9 @@ Use a professional but friendly tone.
         # Step 8️⃣ — Output
         safe_print("📝 Log saved successfully.\n")
         safe_print("💬 ===== Ads Agent (Hive-Enhanced Conversational Response) =====\n")
-        safe_print(response)
+        safe_print(final_response)
         safe_print("\n" + "=" * 90 + "\n")
-        return response
+        return final_response
 
     def handle_query_normalized(self, query):
         raw = self.handle_query(query)
