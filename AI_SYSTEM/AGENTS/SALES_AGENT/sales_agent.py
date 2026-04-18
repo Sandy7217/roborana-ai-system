@@ -23,6 +23,7 @@ from AI_SYSTEM.HIVE_MIND.hivemind_core import (
 from AI_SYSTEM.CORE_UTILS.column_schema import COLUMN_MAP
 from AI_SYSTEM.CORE_UTILS.data_column_mapper import validate_dataframe
 from AI_SYSTEM.CORE_UTILS.gpt_reasoner import gpt_reason_interpretation
+from AI_SYSTEM.CORE_UTILS.shared_agent_logic import integrate_shared_logic
 
 # ------------------------------------------------
 # 🩺 Safe Print Helper
@@ -208,6 +209,12 @@ class SalesAgent(BaseAgent):
                 "channel-wise trends, and style-level performance like a pro analyst."
             ),
         )
+        if not getattr(self, "_shared_logic_injected", False):
+            try:
+                integrate_shared_logic(self)
+                setattr(self, "_shared_logic_injected", True)
+            except Exception as e:
+                safe_print(f"⚠️ Failed to integrate shared logic: {e}")
 
         self.intent_detector = IntentDetector()
 
@@ -345,11 +352,32 @@ class SalesAgent(BaseAgent):
         try:
             result = self._handle_data_query(query)
             spinner.stop()
-            return result
+            return self._normalize_output(result)
         except Exception as e:
             spinner.stop()
             safe_print("⚠️ Error:", e)
             return self.polite_fallback(query, str(e))
+
+    def _normalize_output(self, result):
+        """
+        Convert structured pandas outputs to deterministic text for UI/process safety.
+        """
+        try:
+            if isinstance(result, pd.DataFrame):
+                if result.empty:
+                    return "No rows matched this sales query."
+                safe_df = result.reset_index()
+                return safe_df.to_string(index=False, max_rows=25)
+            if isinstance(result, pd.Series):
+                return result.to_string()
+            if isinstance(result, dict):
+                return json.dumps(result, ensure_ascii=False, indent=2)
+            if result is None:
+                return "No response generated."
+            return str(result)
+        except Exception as e:
+            safe_print(f"⚠️ Output normalization failed: {e}")
+            return str(result)
 
 if __name__ == "__main__":
     safe_print("🚀 Sales Agent (v4.9 FULL Power) started")

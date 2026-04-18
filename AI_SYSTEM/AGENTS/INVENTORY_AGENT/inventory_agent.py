@@ -313,7 +313,6 @@ class InventoryAgent(BaseAgent):
             safe_print(f"\n🧠 New Query → {query}\n")
             summary = interpret_inventory_query(query)
             mode = detect_inventory_mode(query)
-            summary_data = summary.copy() if isinstance(summary, dict) else summary
             summary_text = json.dumps(summary, indent=2, ensure_ascii=False) if isinstance(summary, dict) else str(summary)
             safe_print("📊 Local inventory metrics computed successfully.\n")
 
@@ -428,11 +427,12 @@ Generate a SUMMARY inventory report including:
 
             if not response or len(str(response).strip()) < 40:
                 safe_print("⚠️ Using fallback: merging metrics + forecast.")
-                def get_val(obj, key): return obj.get(key, 0) if isinstance(obj, dict) else getattr(obj, key, 0)
-                total_skus = get_val(summary_data, "total_skus")
-                total_qty = get_val(summary_data, "total_quantity")
-                low_stock = get_val(summary_data, "low_stock_items")
-                overstock = get_val(summary_data, "overstocked_items")
+                summary = summary if isinstance(summary, dict) else {}
+                total_skus = int(summary.get("total_skus", 0))
+                total_qty = int(summary.get("total_qty", 0))
+                low_stock = int(summary.get("low_stock_count", 0))
+                overstock = int(summary.get("over_stock_count", 0))
+                latest_file = summary.get("latest_file")
                 rating, note = evaluate_health(low_stock, total_skus)
                 top_reorders_txt = ""
                 if isinstance(summary, dict) and summary.get("sku_summary"):
@@ -446,6 +446,7 @@ Generate a SUMMARY inventory report including:
 • Total Quantity: {total_qty}
 • Low Stock Items: {low_stock}
 • Overstocked Items: {overstock}
+• Snapshot File: {latest_file or 'N/A'}
 
 🧩 **Health Rating:** {rating}
 💬 {note}

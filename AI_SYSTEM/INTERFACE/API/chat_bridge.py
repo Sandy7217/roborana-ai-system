@@ -8,7 +8,6 @@
 import os, sys, json, tempfile, subprocess, shutil
 from datetime import datetime
 from pathlib import Path
-import pandas as pd
 
 # =========================================================
 # Configuration
@@ -86,20 +85,49 @@ def run_local_agent(agent_name, query_text, file_path=None, timeout=200):
         payload = f"{query_text}\nexit\n"
         out, _ = p.communicate(payload, timeout=timeout)
 
-        # Clean logs — strip emojis, progress, spinner frames
-        clean = []
-        for line in out.splitlines():
-            if not line.strip():
-                continue
-            if any(x in line for x in ["🔧", "✅", "📁", "⚠️", "📦", "📝", "🚀"]):
-                continue
-            clean.append(line)
-        text_output = "\n".join(clean[-100:]).strip()
+        text_output = _extract_final_response(out)
+        if not text_output:
+            text_output = "⚠️ Agent completed but returned no visible response."
         return {"text": text_output}
     except subprocess.TimeoutExpired:
         return {"text": "⏱️ Agent took too long to respond."}
     except Exception as e:
         return {"text": f"❌ Execution error: {e}"}
+
+
+def _extract_final_response(stdout_text: str) -> str:
+    if not isinstance(stdout_text, str):
+        return ""
+
+    markers = [
+        "===== Ads Agent",
+        "===== Inventory Agent",
+        "===== Return Agent",
+        "===== Creative Agent",
+        "===== Manager Agent"
+    ]
+
+    lines = stdout_text.splitlines()
+    start_idx = 0
+
+    for i, line in enumerate(lines):
+        if any(marker in line for marker in markers):
+            start_idx = i + 1
+
+    candidate = "\n".join(lines[start_idx:]).strip()
+    if candidate:
+        return candidate
+
+    filtered = []
+    for line in lines:
+        if not line.strip():
+            continue
+        noisy = ["🔧", "🚀", "📁", "📝", "⏳"]
+        if any(tok in line for tok in noisy):
+            continue
+        filtered.append(line)
+
+    return "\n".join(filtered).strip()
 
 # =========================================================
 # Main Chat Bridge Entry Point

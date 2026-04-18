@@ -177,6 +177,9 @@ def interpret_return_query(query: str):
     if df.empty:
         return {"info": f"No returns found for {period}."}
 
+    period_start_dt = df["return_date"].min() if "return_date" in df.columns else None
+    period_end_dt = df["return_date"].max() if "return_date" in df.columns else None
+
     # 📊 Core metrics
     total_value = df["total_value"].sum()
     total_qty = df["qty"].sum()
@@ -210,6 +213,8 @@ def interpret_return_query(query: str):
 
     return {
         "period": period,
+        "period_start": period_start_dt.date().isoformat() if pd.notna(period_start_dt) else None,
+        "period_end": period_end_dt.date().isoformat() if pd.notna(period_end_dt) else None,
         "total_orders": int(total_orders),
         "total_qty": int(total_qty),
         "total_value": round(total_value, 2),

@@ -27,13 +27,17 @@ def get_return_context(rag_client, user_query: str):
         try:
             csv_summary = interpret_return_query(user_query)
             if csv_summary and "total_orders" in csv_summary:
+                period_text = csv_summary.get("period", "unknown period")
+                period_start = csv_summary.get("period_start")
+                period_end = csv_summary.get("period_end")
                 local_block = (
                     f"📦 Local Return Summary:\n"
-                    f"- Period: {csv_summary['period_start']} → {csv_summary['period_end']}\n"
-                    f"- Total Returns: {csv_summary['total_orders']:,}\n"
-                    f"- Total Quantity: {csv_summary['total_qty']:,}\n"
-                    f"- Total Value: ₹{csv_summary['total_value']:,}\n"
-                    f"- Avg Return Value: ₹{csv_summary['avg_value']:,}\n"
+                    f"- Period: {period_text}\n"
+                    f"- Date Span: {period_start or 'N/A'} → {period_end or 'N/A'}\n"
+                    f"- Total Returns: {int(csv_summary.get('total_orders', 0)):,}\n"
+                    f"- Total Quantity: {int(csv_summary.get('total_qty', 0)):,}\n"
+                    f"- Total Value: ₹{float(csv_summary.get('total_value', 0)):,.2f}\n"
+                    f"- Avg Return Value: ₹{float(csv_summary.get('avg_value', 0)):,.2f}\n"
                 )
 
                 # Channel breakdown
@@ -46,9 +50,9 @@ def get_return_context(rag_client, user_query: str):
                 if csv_summary.get("top_skus"):
                     local_block += "\n🏷️ Top 5 Returned SKUs:\n"
                     for item in csv_summary["top_skus"][:5]:
-                        sku = item.get("product_sku_code", "N/A")
+                        sku = item.get("sku", "N/A")
                         qty = item.get("qty", 0)
-                        total = item.get("total", 0)
+                        total = item.get("total_value", 0)
                         local_block += f"   • {sku} → Qty: {qty} | ₹{total:,.0f}\n"
 
                 combined_context.append(local_block)
