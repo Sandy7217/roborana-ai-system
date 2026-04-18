@@ -219,9 +219,15 @@ Context:
             structured.setdefault(k, v)
 
         # Safe confidence handling
+        raw_confidence = structured.get("confidence", 0.0)
+        try:
+            confidence = float(raw_confidence)
+        except Exception:
+            confidence = 0.0
+        structured["confidence"] = confidence
         confidence = structured.get("confidence", 0) or 0
         if confidence < 0.6 and len(original_query.split()) > 6:
-            structured["confidence"] = confidence + 0.15
+            structured["confidence"] = min(confidence + 0.15, 1.0)
         # --- Final metadata ---
         structured["source"] = "gpt_reasoner"
         structured["timestamp"] = datetime.now().isoformat()
@@ -242,6 +248,7 @@ Context:
             "granularity": "sku",
             "confidence": 0.0,
             "error": str(e),
+            "source": "gpt_reasoner_error",
         }
 
 
