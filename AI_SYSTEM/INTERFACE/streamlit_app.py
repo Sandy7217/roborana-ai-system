@@ -220,6 +220,8 @@ def run_agent(agent_name, user_query, timeout=180):
         cleaned_output = _clean_agent_output(raw_output)
         fatal_error = _looks_like_fatal_error(raw_output)
         has_usable_answer = bool(cleaned_output.strip())
+        has_response_block = _has_response_block(raw_output)
+        fatal_error = _looks_like_fatal_error(raw_output)
 
         if not raw_output.strip():
             result["error"] = "empty_output"
@@ -232,9 +234,33 @@ def run_agent(agent_name, user_query, timeout=180):
             result["text"] = "❌ Agent failed to start correctly. Please check module paths or environment setup."
         else:
             # Internal structured result is retained for future UI diagnostics/debug expanders.
+        elif not has_usable_answer and fatal_error:
+            result["error"] = "startup_or_fatal_error"
+            result["text"] = "❌ Agent failed to start correctly. Please check module paths or environment setup."
+        elif not has_usable_answer:
+            result["error"] = "uncleanable_output"
+            result["text"] = "⚠️ Agent produced output, but no clean answer could be extracted."
+        elif not cleaned_output.strip():
+            result["error"] = "uncleanable_output"
+            result["text"] = "⚠️ Agent produced output, but no clean answer could be extracted."
+        elif fatal_error and not has_response_block:
+            result["error"] = "startup_or_fatal_error"
+            result["text"] = "❌ Agent failed to start correctly. Please check module paths or environment setup."
+        elif result["return_code"] not in (0, None) and not cleaned_output.strip():
+            result["error"] = "non_zero_no_answer"
+            result["text"] = "⚠️ Agent encountered an error before finishing. Check logs for details."
+        else:
             # Keep useful answers, even with non-zero return codes.
             result["ok"] = True
             result["text"] = cleaned_output
+
+        if (
+            not result["ok"]
+            and result["return_code"] not in (0, None)
+            and result["error"] not in {"startup_or_fatal_error", "uncleanable_output", "empty_output"}
+        ):
+            result["error"] = result["error"] or "non_zero_exit"
+            result["text"] = result["text"] or "⚠️ Agent encountered an error before finishing. Check logs for details."
 
         return result["text"]
 
