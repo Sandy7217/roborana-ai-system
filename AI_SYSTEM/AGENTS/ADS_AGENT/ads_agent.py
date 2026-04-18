@@ -27,6 +27,12 @@ def safe_print(*args, **kwargs):
     except UnicodeEncodeError:
         msg = " ".join(str(a) for a in args)
         print(msg.encode("ascii", errors="ignore").decode("ascii"), **kwargs)
+    except Exception:
+        try:
+            msg = " ".join(str(a) for a in args)
+            print(msg)
+        except Exception:
+            pass
 
 
 # ------------------------------------------------
@@ -65,6 +71,7 @@ class Spinner:
 LOG_DIR = "AI_SYSTEM/MEMORY/agent_logs"
 LOG_FILE = os.path.join(LOG_DIR, "ads_agent_log.json")
 QUERY_HISTORY_FILE = "AI_SYSTEM/MEMORY/query_history.json"
+MAX_LOG_ENTRIES = 1000
 os.makedirs(LOG_DIR, exist_ok=True)
 
 
@@ -75,13 +82,40 @@ def append_json(path, row):
             with open(path, "r", encoding="utf-8") as f:
                 try:
                     data = json.load(f)
-                except:
+                except json.JSONDecodeError:
                     data = []
         data.append(row)
+        data = data[-MAX_LOG_ENTRIES:]
         with open(path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=4, ensure_ascii=False)
     except Exception as e:
         safe_print(f"⚠️ Log write error: {e}")
+
+
+def _should_use_spinner():
+    return sys.stdout is not None and hasattr(sys.stdout, "isatty") and sys.stdout.isatty()
+
+
+def normalize_ads_response(response):
+    if response is None:
+        return {
+            "status": "error",
+            "data": {},
+            "message": "Ads agent returned None"
+        }
+
+    if isinstance(response, dict):
+        return {
+            "status": response.get("status", "success"),
+            "data": response.get("data", response),
+            "message": response.get("message", "")
+        }
+
+    return {
+        "status": "success",
+        "data": {"raw_output": str(response)},
+        "message": ""
+    }
 
 
 # ------------------------------------------------
@@ -102,7 +136,7 @@ class AdsAgent(BaseAgent):
 
         integrate_shared_logic(self)
 
-        # ✅ Shared Logic Integration
+        # ✅ Shared logic hook reserved for future generic fallback paths.
         self.handle_generic_query = getattr(self, "handle_generic_query", None)
 
         safe_print("🔧 Initializing Unified RAG Brain...")
@@ -122,11 +156,10 @@ class AdsAgent(BaseAgent):
     # 🧠 Handle Query
     # ------------------------------------------------
     def handle_query(self, query):
-        # 🧩 Step 1 — Normalize user input (Hindi/Hinglish → English, fix typos)
-        query = self.process_user_input(query)
-
         spinner = Spinner("📊 Analyzing Ads & Performance Data")
-        spinner.start()
+        use_spinner = _should_use_spinner()
+        if use_spinner:
+            spinner.start()
         response = ""
         data = {}
         totals = {}
@@ -135,6 +168,27 @@ class AdsAgent(BaseAgent):
         has_rag_context = False
 
         try:
+            # 🧩 Step 1 — Normalize user input (Hindi/Hinglish → English, fix typos)
+            original_query = query
+            process_user_input_fn = getattr(self, "process_user_input", None)
+            if callable(process_user_input_fn):
+                try:
+                    query = process_user_input_fn(query)
+                except (TypeError, AttributeError) as e:
+                    # Safety fallback for downstream intent parsing failures in shared logic
+                    if "NoneType" in str(e) and "subscriptable" in str(e):
+                        safe_print("⚠️ Intent parsing failed; falling back to raw query.")
+                        query = original_query
+                    else:
+                        query = original_query
+            else:
+                query = original_query
+
+            if query is None:
+                query = original_query
+            if not isinstance(query, str):
+                query = str(query)
+
             safe_print(f"\n🧠 New Query → {query}\n")
 
             # Step 2️⃣ — Interpret Ad Performance Data
@@ -215,16 +269,33 @@ Use a professional but friendly tone.
                     response = f"⚠️ Reasoning error: {e}"
 
             # Step 5️⃣ — Conversational Postprocessing
-            response = self.process_agent_output(query, response)
+            process_agent_output_fn = getattr(self, "process_agent_output", None)
+            if callable(process_agent_output_fn):
+                try:
+                    response = process_agent_output_fn(query, response)
+                except (TypeError, AttributeError) as e:
+                    if "NoneType" in str(e) and "subscriptable" in str(e):
+                        safe_print("⚠️ Output postprocessing fallback triggered.")
+                        response = response if isinstance(response, str) else str(response)
+                    else:
+                        safe_print(f"⚠️ Output postprocessing skipped: {e}")
+
+            if response is None:
+                response = "I could not generate a valid ads analysis response."
+            elif isinstance(response, dict):
+                response = json.dumps(response, indent=2, default=str)
+            elif not isinstance(response, str):
+                response = str(response)
 
             # Step 6️⃣ — Logging
+            safe_data = data if isinstance(data, dict) else {}
             entry = {
                 "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 "agent": "Ads Agent",
                 "query": query,
                 "response": response[:4000],
-                "period_start": str(data.get("period_start")),
-                "period_end": str(data.get("period_end")),
+                "period_start": str(safe_data.get("period_start")),
+                "period_end": str(safe_data.get("period_end")),
             }
             append_json(LOG_FILE, entry)
             append_json(QUERY_HISTORY_FILE, {"timestamp": entry["timestamp"], "query": query})
@@ -241,8 +312,12 @@ Use a professional but friendly tone.
             except Exception as e:
                 safe_print(f"⚠️ Hive update error: {e}")
 
+        except Exception as e:
+            safe_print(f"⚠️ Unexpected Ads Agent error: {e}")
+            response = f"I hit an unexpected error while analyzing ads data: {e}"
         finally:
-            spinner.stop()
+            if use_spinner:
+                spinner.stop()
 
         # Step 8️⃣ — Output
         safe_print("📝 Log saved successfully.\n")
@@ -250,6 +325,10 @@ Use a professional but friendly tone.
         safe_print(response)
         safe_print("\n" + "=" * 90 + "\n")
         return response
+
+    def handle_query_normalized(self, query):
+        raw = self.handle_query(query)
+        return normalize_ads_response(raw)
 
 
 # ------------------------------------------------
