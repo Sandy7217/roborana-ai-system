@@ -40,6 +40,7 @@ class ContextualVoiceRouter:
             "finance": ["profit", "margin", "roi", "cost", "loss", "expense", "net", "gmv"],
             "ads": [
                 "ad", "ads", "advertisement", "campaign", "myntra ads", "visibility", "pla", "impression", "impressions",
+                "ad", "advertisement", "campaign", "myntra ads", "visibility", "pla", "impression", "impressions",
                 "ctr", "roas", "spend", "ad spend", "ads spend", "marketing spend", "cpc", "click", "clicks"
             ],
             "manager": ["status", "report", "summary", "dashboard", "overall", "update"]

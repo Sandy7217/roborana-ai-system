@@ -43,6 +43,7 @@ def _validate_module_path(module: str) -> bool:
             return importlib.util.find_spec(module) is not None
         except Exception:
             return False
+        return importlib.util.find_spec(module) is not None
 
 # ------------------------------------------------
 # 🚀 Agent Runner — Cross-Platform & Input-Safe

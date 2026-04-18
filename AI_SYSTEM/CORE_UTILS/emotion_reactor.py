@@ -15,6 +15,7 @@ Author: Generated for Sandeep Rana / RoboRana
 """
 
 import random
+import re
 from datetime import datetime
 from typing import Optional, Dict
 
@@ -136,6 +137,51 @@ class EmotionReactor:
             return True
 
         if "\n" in t and any(line.strip().startswith(("-", "•", "#")) for line in t.splitlines()):
+        return " ".join(final_text.split())
+
+    def _should_skip_rewrite(self, text: str) -> bool:
+        """
+        Detect responses where emotional rewriting should be skipped.
+        """
+        if not isinstance(text, str):
+            return True
+
+        t = text.strip()
+        if not t:
+            return True
+
+        protected_markers = [
+            "###", "```", "|", "•", "1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣",
+            "Spend:", "Revenue:", "ROAS", "CTR", "CPC",
+            "Ads spend was", "ROAS was", "Please tell me exactly",
+            "This looks like", "This seems related"
+        ]
+        if any(marker in t for marker in protected_markers):
+            return True
+
+        if "\n" in t and any(line.strip().startswith(("-", "•", "#")) for line in t.splitlines()):
+        if self._is_structured_or_metric_response(text):
+            return text.strip()
+
+        final_text = f"{prefix} {reaction} {text.strip()} {suffix} {emoji}".strip()
+        return " ".join(final_text.split())
+
+    def _is_structured_or_metric_response(self, text: str) -> bool:
+        """
+        Detect structured/metric-heavy responses where decoration can corrupt intent.
+        """
+        t = (text or "").strip()
+        if not t:
+            return True
+
+        markdown_tokens = ("```", "|", "#", "##", "###", "- ", "* ", "1.", "2.", "3.")
+        if any(token in t for token in markdown_tokens):
+            return True
+
+        if re.search(r"\d", t):
+            return True
+
+        if any(sym in t for sym in ("₹", "$", "%", "->", "=>", "::", "{", "}", "[", "]")):
             return True
 
         return False
