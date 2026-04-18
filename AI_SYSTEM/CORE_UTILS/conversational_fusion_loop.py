@@ -27,7 +27,7 @@ from AI_SYSTEM.CORE_UTILS.chat_brain_and_intent_engine import attach_chatbrain, 
 ROUTES_LOG = os.path.join("AI_SYSTEM", "MEMORY", "fusion_routes.json")
 AGENT_LOAD_ORDER = {
     "sales": "AI_SYSTEM.AGENTS.SALES_AGENT.sales_agent",
-    "returns": "AI_SYSTEM.AGENTS.RETURNS_AGENT.returns_agent",
+    "returns": "AI_SYSTEM.AGENTS.RETURN_AGENT.return_agent",
     "inventory": "AI_SYSTEM.AGENTS.INVENTORY_AGENT.inventory_agent",
     "finance": "AI_SYSTEM.AGENTS.FINANCE_AGENT.finance_agent",
     "ads": "AI_SYSTEM.AGENTS.ADS_AGENT.ads_agent",
@@ -204,7 +204,13 @@ class ConversationalFusionLoop:
             self.chatbrain.push_message("user", user_text)
 
             # 2) analyze intent & emotion (use local engine)
-            intent, emotion, conf = self.intent_engine.detect(user_text)
+            intent_data = self.intent_engine.detect(user_text)
+            if not isinstance(intent_data, dict):
+                intent_data = {}
+
+            intent = intent_data.get("intent", "unknown")
+            emotion = intent_data.get("emotion", "neutral")
+            conf = intent_data.get("confidence", 0.0)
             result["detected_intent"] = intent
             result["detected_emotion"] = emotion
             result["intent_confidence"] = conf
@@ -257,13 +263,19 @@ class ConversationalFusionLoop:
 
             # 7) Emotionally modulate (prefer agent's own reactor if exists)
             final_response = None
+            raw_response_text = str(raw_response) if raw_response is not None else ""
             try:
-                if hasattr(agent_inst, "react_response") and callable(getattr(agent_inst, "react_response")):
-                    final_response = agent_inst.react_response(str(raw_response), emotion=emotion, tone=snapshot.get("dominant_tone", "neutral"), agent_type=agent_key)
-                else:
-                    final_response = self.emotion_reactor.react(str(raw_response), emotion=emotion, tone=snapshot.get("dominant_tone", "neutral"), agent_type=agent_key)
+                should_apply_emotion = bool(raw_response_text.strip())
+                if should_apply_emotion:
+                    if hasattr(agent_inst, "react_response") and callable(getattr(agent_inst, "react_response")):
+                        final_response = agent_inst.react_response(raw_response_text, emotion=emotion, tone=snapshot.get("dominant_tone", "neutral"), agent_type=agent_key)
+                    else:
+                        final_response = self.emotion_reactor.react(raw_response_text, emotion=emotion, tone=snapshot.get("dominant_tone", "neutral"), agent_type=agent_key)
             except Exception as e:
-                final_response = str(raw_response)
+                final_response = raw_response_text
+
+            if not isinstance(final_response, str) or not final_response.strip():
+                final_response = raw_response_text if raw_response_text.strip() else "⚠️ I could not generate a stable response. Please retry."
 
             result["final_response"] = final_response
 

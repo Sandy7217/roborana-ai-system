@@ -642,28 +642,6 @@ class BaseAgent:
         except Exception as e:
             return f"⚠️ Redirect failed: {e}"
 
-# ===========================================================
-# 🧠 RoboRana Unified Intelligence Hook (Auto Injection)
-# ===========================================================
-try:
-    from AI_SYSTEM.CORE_UTILS.shared_agent_logic import integrate_shared_logic
-
-    # ✅ Patch BaseAgent.__init__ to inject shared logic into all future agent instances
-    _original_init = BaseAgent.__init__
-
-    def _init_with_shared_logic(self, *args, **kwargs):
-        _original_init(self, *args, **kwargs)
-        try:
-            integrate_shared_logic(self)
-        except Exception as e:
-            print(f"⚠️ Failed to inject shared logic into {getattr(self, 'name', 'Unknown Agent')}: {e}")
-
-    BaseAgent.__init__ = _init_with_shared_logic
-
-    print("\n=====================================================")
-    print("✅ Shared logic auto-injection enabled for all agents.")
-    print("🧩 Central Intelligence Module: ACTIVE")
-    print("=====================================================\n")
-
-except Exception as e:
-    print(f"⚠️ Shared logic setup failed: {e}")
+# NOTE:
+# Shared logic must be integrated explicitly by each agent (via integrate_shared_logic(self))
+# to avoid hidden global monkey-patching and side effects across agents.

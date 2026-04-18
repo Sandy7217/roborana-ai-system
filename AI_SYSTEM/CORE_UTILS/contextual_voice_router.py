@@ -38,7 +38,10 @@ class ContextualVoiceRouter:
             "returns": ["return", "refund", "rto", "replacement", "defect"],
             "inventory": ["inventory", "stock", "quantity", "slow", "fast moving", "out of stock"],
             "finance": ["profit", "margin", "roi", "cost", "loss", "expense", "net", "gmv"],
-            "ads": ["ad", "advertisement", "campaign", "myntra ads", "visibility", "pla", "impression", "ctr"],
+            "ads": [
+                "ad", "advertisement", "campaign", "myntra ads", "visibility", "pla", "impression", "impressions",
+                "ctr", "roas", "spend", "ad spend", "ads spend", "marketing spend", "cpc", "click", "clicks"
+            ],
             "manager": ["status", "report", "summary", "dashboard", "overall", "update"]
         }
 

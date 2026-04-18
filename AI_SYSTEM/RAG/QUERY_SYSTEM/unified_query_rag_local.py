@@ -17,7 +17,7 @@ class UnifiedQueryRAGLocal:
         # -------------------------------------------------
         # 🔍 Determine Vector DB Path
         # -------------------------------------------------
-        base_path = os.path.abspath(os.path.join(os.getcwd(), "AI_SYSTEM", "RAG", "VECTOR_DB"))
+        base_path = self._resolve_vector_db_path()
         print(f"🔍 Using vector DB path: {base_path}")
 
         # -------------------------------------------------
@@ -46,6 +46,19 @@ class UnifiedQueryRAGLocal:
 
         print("✅ UnifiedQueryRAGLocal initialized successfully.\n")
 
+    def _resolve_vector_db_path(self) -> str:
+        """
+        Resolve vector DB path in a deterministic way.
+        """
+        candidates = [
+            os.path.abspath(os.path.join(os.getcwd(), "AI_SYSTEM", "RAG", "VECTOR_DB")),
+            os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "VECTOR_DB")),
+        ]
+        for p in candidates:
+            if os.path.isdir(p):
+                return p
+        return candidates[0]
+
     # =========================================================
     # 🧩 Helper — List all available collections
     # =========================================================
@@ -69,7 +82,7 @@ class UnifiedQueryRAGLocal:
         Returns a dictionary with documents and metadata.
         """
         try:
-            collection = self.client.get_or_create_collection(name=collection_name)
+            collection = self.client.get_collection(name=collection_name)
             results = collection.query(query_texts=[query_text], n_results=n_results)
 
             docs = results.get("documents", [[]])[0] if results else []

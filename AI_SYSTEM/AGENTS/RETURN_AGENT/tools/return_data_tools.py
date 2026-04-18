@@ -210,6 +210,8 @@ def interpret_return_query(query: str):
 
     return {
         "period": period,
+        "period_start": start_dt.strftime("%Y-%m-%d"),
+        "period_end": now.strftime("%Y-%m-%d"),
         "total_orders": int(total_orders),
         "total_qty": int(total_qty),
         "total_value": round(total_value, 2),
