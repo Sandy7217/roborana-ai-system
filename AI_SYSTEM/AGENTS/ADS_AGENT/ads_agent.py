@@ -470,6 +470,14 @@ class AdsAgent(BaseAgent):
                 elif query_info.get("mode") == "top_item":
                     response = "Please specify what you want ranked in ads, for example top spend SKU, top ROAS SKU, highest clicks, or lowest CTR."
                     response_source = "deterministic"
+                elif query_info.get("mode") == "unclear":
+                    response = build_ads_clarification_response()
+                elif query_info.get("mode") == "single_metric" and has_ads_data:
+                    response = build_single_metric_response(query_info.get("target"), data)
+                elif query_info.get("mode") == "comparison" and has_ads_data:
+                    response = build_metric_comparison_response(query_info.get("target"), data)
+                elif query_info.get("mode") == "top_item":
+                    response = "Please specify what you want ranked in ads, for example top spend SKU, top ROAS SKU, highest clicks, or lowest CTR."
                 else:
                     # Step 4️⃣ — Unified Reasoning Prompt
                     prompt = f"""
@@ -501,6 +509,9 @@ Use a professional but friendly tone.
                     except Exception as e:
                         response = f"⚠️ Reasoning error: {e}"
                         response_source = "deterministic"
+                        safe_print(f"DEBUG think() type={type(response)} value={repr(response)[:500]}")
+                    except Exception as e:
+                        response = f"⚠️ Reasoning error: {e}"
 
                     if response is None:
                         safe_print("⚠️ think() returned None; using deterministic ads fallback summary.")
@@ -510,6 +521,9 @@ Use a professional but friendly tone.
                         safe_print("⚠️ think() returned blank text; using deterministic ads fallback summary.")
                         response = build_ads_fallback_summary(query, data)
                         response_source = "deterministic"
+                    elif isinstance(response, str) and not response.strip():
+                        safe_print("⚠️ think() returned blank text; using deterministic ads fallback summary.")
+                        response = build_ads_fallback_summary(query, data)
 
             # Step 5️⃣ — Conversational Postprocessing
             raw_reasoning_response = response
