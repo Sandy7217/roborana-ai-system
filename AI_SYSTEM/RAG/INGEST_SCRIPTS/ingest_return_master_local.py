@@ -15,9 +15,10 @@ from sentence_transformers import SentenceTransformer
 import chromadb
 from pathlib import Path
 import time
+import os
 
 # === PATH CONFIG ===
-BASE_PATH = Path(r"C:\Users\Sandeep\Desktop\roborana_ai_system\RoboRana_AI_Data")
+BASE_PATH = Path(os.getenv("ROBORANA_BASE_PATH", Path.cwd()))
 RETURNS_DIR = BASE_PATH / "DATA" / "RETURNS" / "Master"
 VECTOR_PATH = BASE_PATH / "AI_SYSTEM" / "RAG" / "VECTOR_DB"
 COLLECTION_NAME = "returns"
@@ -37,7 +38,11 @@ else:
 
 # === CONNECT TO CHROMA ===
 client = chromadb.PersistentClient(path=str(VECTOR_PATH))
-collection = client.get_or_create_collection(name=COLLECTION_NAME)
+try:
+    collection = client.get_collection(name=COLLECTION_NAME)
+except Exception:
+    print(f"ℹ️ Collection '{COLLECTION_NAME}' missing. Creating explicitly for ingestion.")
+    collection = client.create_collection(name=COLLECTION_NAME)
 
 # === LOAD LOCAL EMBEDDING MODEL ===
 print("\n🔧 Loading local embedding model (this may take ~30s the first time)...")

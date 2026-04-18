@@ -15,6 +15,7 @@ Author: Generated for Sandeep Rana / RoboRana
 """
 
 import random
+import re
 from datetime import datetime
 from typing import Optional, Dict
 
@@ -96,6 +97,7 @@ class EmotionReactor:
         Optionally varies by agent personality.
         """
 
+        text = "" if text is None else str(text)
         emotion = emotion or "neutral"
         tone = tone or self.default_tone
 
@@ -108,8 +110,31 @@ class EmotionReactor:
             text = self.shared_logic.adjust_personality_tone(text, agent_type or "general")
 
         # Step 3: Combine with emotional modulation
-        final_text = f"{prefix} {reaction} {text.strip().capitalize()} {suffix} {emoji}".strip()
+        if self._is_structured_or_metric_response(text):
+            return text.strip()
+
+        final_text = f"{prefix} {reaction} {text.strip()} {suffix} {emoji}".strip()
         return " ".join(final_text.split())
+
+    def _is_structured_or_metric_response(self, text: str) -> bool:
+        """
+        Detect structured/metric-heavy responses where decoration can corrupt intent.
+        """
+        t = (text or "").strip()
+        if not t:
+            return True
+
+        markdown_tokens = ("```", "|", "#", "##", "###", "- ", "* ", "1.", "2.", "3.")
+        if any(token in t for token in markdown_tokens):
+            return True
+
+        if re.search(r"\d", t):
+            return True
+
+        if any(sym in t for sym in ("₹", "$", "%", "->", "=>", "::", "{", "}", "[", "]")):
+            return True
+
+        return False
 
     def _get_tone_modifiers(self, tone: str) -> tuple:
         """Return (prefix, suffix, emoji) modifiers based on tone style."""

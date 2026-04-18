@@ -214,6 +214,7 @@ def load_inventory_data(user_query: str = ""):
         df["total_quantity"] = 0
 
     print(f"✅ Loaded {len(df)} rows and {len(df.columns)} columns from {os.path.basename(file_path)}")
+    df.attrs["source_file"] = file_path
     return df
 
 
@@ -235,8 +236,12 @@ def interpret_inventory_query(query: str, inventory_df=None):
         summary = {
             "total_skus": int(total_skus),
             "total_qty": int(total_qty),
+            "total_quantity": int(total_qty),
             "low_stock_count": len(low_stock),
+            "low_stock_items": len(low_stock),
             "over_stock_count": len(over_stock),
+            "overstocked_items": len(over_stock),
+            "latest_file": inventory_df.attrs.get("source_file"),
             "status": "ok",
         }
 
@@ -251,4 +256,15 @@ def interpret_inventory_query(query: str, inventory_df=None):
 
     except Exception as e:
         print(f"⚠️ interpret_inventory_query() error: {e}")
-        return {"error": str(e), "status": "failed"}
+        return {
+            "error": str(e),
+            "status": "failed",
+            "total_skus": 0,
+            "total_qty": 0,
+            "total_quantity": 0,
+            "low_stock_count": 0,
+            "low_stock_items": 0,
+            "over_stock_count": 0,
+            "overstocked_items": 0,
+            "latest_file": None,
+        }

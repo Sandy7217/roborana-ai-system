@@ -6,6 +6,7 @@ import os, sys, subprocess
 AGENT_MODULES = {
     "sales":     "AI_SYSTEM.AGENTS.SALES_AGENT.sales_agent",
     "returns":   "AI_SYSTEM.AGENTS.RETURN_AGENT.return_agent",
+    "return":    "AI_SYSTEM.AGENTS.RETURN_AGENT.return_agent",
     "inventory": "AI_SYSTEM.AGENTS.INVENTORY_AGENT.inventory_agent",
     "ads":       "AI_SYSTEM.AGENTS.ADS_AGENT.ads_agent",
     # "finance": "AI_SYSTEM.AGENTS.FINANCE_AGENT.finance_agent",

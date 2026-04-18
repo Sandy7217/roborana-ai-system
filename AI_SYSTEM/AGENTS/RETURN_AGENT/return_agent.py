@@ -18,6 +18,7 @@ from AI_SYSTEM.HIVE_MIND.hivemind_core import (
 # ✅ Unified Schema Imports
 from AI_SYSTEM.CORE_UTILS.column_schema import COLUMN_MAP, DATE_FORMATS
 from AI_SYSTEM.CORE_UTILS.data_column_mapper import validate_dataframe
+from AI_SYSTEM.CORE_UTILS.shared_agent_logic import integrate_shared_logic
 
 
 # ------------------------------------------------
@@ -100,6 +101,13 @@ class ReturnAgent(BaseAgent):
                 "otherwise, reply factually and politely."
             ),
         )
+
+        if not getattr(self, "_shared_logic_injected", False):
+            try:
+                integrate_shared_logic(self)
+                setattr(self, "_shared_logic_injected", True)
+            except Exception as e:
+                safe_print(f"⚠️ Failed to integrate shared logic: {e}")
 
         # ✅ Shared Logic Integration
         self.handle_generic_query = getattr(self, "handle_generic_query", None)

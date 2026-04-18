@@ -27,6 +27,7 @@ from AI_SYSTEM.AGENTS.CREATIVE_AGENT.tools.creative_tools import (
 from AI_SYSTEM.AGENTS.CREATIVE_AGENT.tools.creative_visual_tools import (
     build_sales_ppt_v3, build_returns_ppt_v3
 )
+from AI_SYSTEM.CORE_UTILS.shared_agent_logic import integrate_shared_logic
 
 # ---------------------------------------------------------
 # 🌐 Configuration
@@ -99,6 +100,12 @@ class CreativeAgent(BaseAgent):
                 "You build insightful PPTs, PDFs, and CSVs enriched with Hive and RAG intelligence."
             ),
         )
+        if not getattr(self, "_shared_logic_injected", False):
+            try:
+                integrate_shared_logic(self)
+                setattr(self, "_shared_logic_injected", True)
+            except Exception as e:
+                safe_print(f"⚠️ Failed to integrate shared logic: {e}")
 
         # ✅ Shared Logic Integration
         self.handle_generic_query = getattr(self, "handle_generic_query", None)
@@ -233,7 +240,15 @@ class CreativeAgent(BaseAgent):
             record_pattern("Return trends visualization generated", "Creative Agent")
 
         # Step 6: Human-friendly reply
-        response = self.process_agent_output(q, result)
+        response = result
+        try:
+            response = self.process_agent_output(q, result)
+        except Exception as e:
+            safe_print(f"⚠️ process_agent_output failed, using raw result: {e}")
+            response = result
+
+        if response is None or not str(response).strip():
+            response = str(result) if result is not None else "Creative output generated, but no response text was returned."
         safe_print("\n🎨 ===== Creative Agent Response =====\n")
         safe_print(response)
         return response

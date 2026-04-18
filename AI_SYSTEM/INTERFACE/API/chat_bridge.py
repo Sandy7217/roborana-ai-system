@@ -9,6 +9,7 @@ import os, sys, json, tempfile, subprocess, shutil
 from datetime import datetime
 from pathlib import Path
 import pandas as pd
+import re
 
 # =========================================================
 # Configuration
@@ -86,20 +87,32 @@ def run_local_agent(agent_name, query_text, file_path=None, timeout=200):
         payload = f"{query_text}\nexit\n"
         out, _ = p.communicate(payload, timeout=timeout)
 
-        # Clean logs — strip emojis, progress, spinner frames
-        clean = []
-        for line in out.splitlines():
-            if not line.strip():
-                continue
-            if any(x in line for x in ["🔧", "✅", "📁", "⚠️", "📦", "📝", "🚀"]):
-                continue
-            clean.append(line)
-        text_output = "\n".join(clean[-100:]).strip()
+        text_output = _extract_meaningful_output(out)
         return {"text": text_output}
     except subprocess.TimeoutExpired:
         return {"text": "⏱️ Agent took too long to respond."}
     except Exception as e:
         return {"text": f"❌ Execution error: {e}"}
+
+
+def _extract_meaningful_output(raw_output: str) -> str:
+    """
+    Keep meaningful content while discarding spinner noise and shell echoes.
+    """
+    lines = []
+    for raw_line in (raw_output or "").splitlines():
+        line = (raw_line or "").strip()
+        if not line:
+            continue
+        if re.search(r"(\\.\\.\\.)\\s*[|/\\\\-]$", line):
+            continue
+        if line.startswith(("🧠 Enter query", "🎯 Creative Command", ">")):
+            continue
+        lines.append(line)
+
+    if not lines:
+        return "⚠️ Agent completed but returned no visible response."
+    return "\n".join(lines[-120:]).strip()
 
 # =========================================================
 # Main Chat Bridge Entry Point
