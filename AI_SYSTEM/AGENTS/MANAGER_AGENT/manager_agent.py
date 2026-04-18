@@ -185,7 +185,12 @@ class ManagerAgent(BaseAgent):
             ),
         )
 
-        integrate_shared_logic(self)
+        if not getattr(self, "_shared_logic_injected", False):
+            try:
+                integrate_shared_logic(self)
+                setattr(self, "_shared_logic_injected", True)
+            except Exception as e:
+                safe_print(f"⚠️ Failed to integrate shared logic: {e}")
 
         # 🧩 Connect Inventory Agent
         self.inventory_agent = InventoryAgent()
@@ -251,7 +256,7 @@ class ManagerAgent(BaseAgent):
         # 🔮 Inventory forecast logic
         if any(k in q for k in ["inventory", "forecast", "replenish", "stock plan", "reorder"]):
             safe_print("📦 Manager delegating inventory forecast task...")
-            forecast_response = self.inventory_agent.handle_query("predict inventory for next 90 days")
+            forecast_response = self.inventory_agent.handle_query(query)
             combined = f"""
 🧭 **Manager’s Consolidated Insight**
 ──────────────────────────────
