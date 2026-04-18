@@ -375,6 +375,7 @@ class AdsAgent(BaseAgent):
         has_rag_context = False
         query_info = {"mode": "broad_summary", "target": None}
         domain_scope = "unknown"
+        response_source = "unknown"
 
         try:
             # 🧩 Step 1 — Normalize user input (Hindi/Hinglish → English, fix typos)
@@ -404,6 +405,7 @@ class AdsAgent(BaseAgent):
 
             if domain_scope not in ("ads", "unknown"):
                 response = build_ads_redirect_response(domain_scope)
+                response_source = "deterministic"
             else:
                 # Step 2️⃣ — Interpret Ad Performance Data
                 try:
@@ -455,6 +457,19 @@ class AdsAgent(BaseAgent):
 
                 if not has_ads_data and not has_rag_context:
                     response = "I could not find enough grounded ads data for this query right now. Please check whether the ads source files and RAG collections are available and up to date."
+                    response_source = "deterministic"
+                elif query_info.get("mode") == "unclear":
+                    response = build_ads_clarification_response()
+                    response_source = "deterministic"
+                elif query_info.get("mode") == "single_metric" and has_ads_data:
+                    response = build_single_metric_response(query_info.get("target"), data)
+                    response_source = "deterministic"
+                elif query_info.get("mode") == "comparison" and has_ads_data:
+                    response = build_metric_comparison_response(query_info.get("target"), data)
+                    response_source = "deterministic"
+                elif query_info.get("mode") == "top_item":
+                    response = "Please specify what you want ranked in ads, for example top spend SKU, top ROAS SKU, highest clicks, or lowest CTR."
+                    response_source = "deterministic"
                 elif query_info.get("mode") == "unclear":
                     response = build_ads_clarification_response()
                 elif query_info.get("mode") == "single_metric" and has_ads_data:
@@ -489,6 +504,11 @@ Use a professional but friendly tone.
 
                     try:
                         response = self.think(prompt)
+                        response_source = "llm"
+                        safe_print(f"DEBUG think() type={type(response)} value={repr(response)[:500]}")
+                    except Exception as e:
+                        response = f"⚠️ Reasoning error: {e}"
+                        response_source = "deterministic"
                         safe_print(f"DEBUG think() type={type(response)} value={repr(response)[:500]}")
                     except Exception as e:
                         response = f"⚠️ Reasoning error: {e}"
@@ -496,6 +516,11 @@ Use a professional but friendly tone.
                     if response is None:
                         safe_print("⚠️ think() returned None; using deterministic ads fallback summary.")
                         response = build_ads_fallback_summary(query, data)
+                        response_source = "deterministic"
+                    elif isinstance(response, str) and not response.strip():
+                        safe_print("⚠️ think() returned blank text; using deterministic ads fallback summary.")
+                        response = build_ads_fallback_summary(query, data)
+                        response_source = "deterministic"
                     elif isinstance(response, str) and not response.strip():
                         safe_print("⚠️ think() returned blank text; using deterministic ads fallback summary.")
                         response = build_ads_fallback_summary(query, data)
@@ -504,7 +529,7 @@ Use a professional but friendly tone.
             raw_reasoning_response = response
             process_agent_output_fn = getattr(self, "process_agent_output", None)
 
-            if callable(process_agent_output_fn):
+            if callable(process_agent_output_fn) and response_source == "llm":
                 try:
                     processed_response = process_agent_output_fn(query, response)
                     safe_print(f"DEBUG process_agent_output() type={type(processed_response)} value={repr(processed_response)[:500]}")
@@ -515,6 +540,19 @@ Use a professional but friendly tone.
 
                     elif isinstance(processed_response, str) and not processed_response.strip():
                         safe_print("⚠️ process_agent_output returned blank text; using raw reasoning response.")
+                        response = raw_reasoning_response
+
+                    elif isinstance(processed_response, str) and any(
+                        failure_text in processed_response.lower()
+                        for failure_text in [
+                            "i could not generate",
+                            "unable to generate",
+                            "sorry, i couldn't",
+                            "could not process",
+                            "something went wrong",
+                        ]
+                    ):
+                        safe_print("⚠️ process_agent_output returned generic failure text; using raw reasoning response.")
                         response = raw_reasoning_response
 
                     else:
@@ -556,9 +594,13 @@ Use a professional but friendly tone.
         except Exception as e:
             safe_print(f"⚠️ Unexpected Ads Agent error: {e}")
             response = f"I hit an unexpected error while analyzing ads data: {e}"
+            final_response = response
         finally:
             if use_spinner:
                 spinner.stop()
+
+        if not final_response:
+            final_response = response if isinstance(response, str) and response else "I hit an unexpected ads-agent state with no final response."
 
         # Step 8️⃣ — Output
         safe_print("📝 Log saved successfully.\n")
