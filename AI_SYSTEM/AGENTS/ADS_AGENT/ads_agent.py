@@ -118,6 +118,24 @@ def normalize_ads_response(response):
     }
 
 
+def build_ads_fallback_summary(query, data):
+    safe_data = data if isinstance(data, dict) else {}
+    totals = safe_data.get("totals", {}) or {}
+    if isinstance(totals, dict) and totals:
+        spend = totals.get("spend", 0)
+        clicks = totals.get("clicks", 0)
+        impressions = totals.get("impressions", 0)
+        orders = totals.get("orders", 0)
+        revenue = totals.get("revenue", 0)
+        roas = totals.get("roas", 0)
+        return (
+            f"For the selected ads period, spend was ₹{spend:,}, clicks were {clicks}, "
+            f"impressions were {impressions}, orders were {orders}, revenue was ₹{revenue:,}, "
+            f"and ROAS was {roas}."
+        )
+    return "I could not find enough grounded ads data for this query right now. Please check whether the ads source files and RAG collections are available and up to date."
+
+
 # ------------------------------------------------
 # 🤖 Ads Agent (Hive Mind Aware + Human Understanding)
 # ------------------------------------------------
@@ -265,10 +283,32 @@ Use a professional but friendly tone.
 
                 try:
                     response = self.think(prompt)
+                    safe_print(f"DEBUG think() type={type(response)} value={repr(response)[:500]}")
                 except Exception as e:
                     response = f"⚠️ Reasoning error: {e}"
 
+                if response is None:
+                    safe_print("⚠️ think() returned None; using deterministic ads fallback summary.")
+                    response = build_ads_fallback_summary(query, data)
+                elif isinstance(response, str) and not response.strip():
+                    safe_print("⚠️ think() returned blank text; using deterministic ads fallback summary.")
+                    response = build_ads_fallback_summary(query, data)
+
             # Step 5️⃣ — Conversational Postprocessing
+            raw_reasoning_response = response
+            process_agent_output_fn = getattr(self, "process_agent_output", None)
+            if callable(process_agent_output_fn):
+                try:
+                    processed_response = process_agent_output_fn(query, response)
+                    safe_print(f"DEBUG process_agent_output() type={type(processed_response)} value={repr(processed_response)[:500]}")
+                    if processed_response is None:
+                        safe_print("⚠️ process_agent_output returned None; using raw reasoning response.")
+                        response = raw_reasoning_response
+                    elif isinstance(processed_response, str) and not processed_response.strip():
+                        safe_print("⚠️ process_agent_output returned blank text; using raw reasoning response.")
+                        response = raw_reasoning_response
+                    else:
+                        response = processed_response
             process_agent_output_fn = getattr(self, "process_agent_output", None)
             if callable(process_agent_output_fn):
                 try:
@@ -281,11 +321,14 @@ Use a professional but friendly tone.
                         safe_print(f"⚠️ Output postprocessing skipped: {e}")
 
             if response is None:
+                response = build_ads_fallback_summary(query, data)
                 response = "I could not generate a valid ads analysis response."
             elif isinstance(response, dict):
                 response = json.dumps(response, indent=2, default=str)
             elif not isinstance(response, str):
                 response = str(response)
+            elif not response.strip():
+                response = build_ads_fallback_summary(query, data)
 
             # Step 6️⃣ — Logging
             safe_data = data if isinstance(data, dict) else {}
