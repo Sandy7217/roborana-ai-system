@@ -94,10 +94,15 @@ def _clean_agent_output(text: str) -> str:
     if not text:
         return ""
 
-    block = re.search(r"=====.*?Response.*?=====\s*(.*)", text, re.S | re.I)
+    # Prefer explicit "Response" sections when available.
+    block = re.search(
+        r"={5,}.*?Response.*?={5,}\s*(.*?)(?:\n={5,}.*?$|\Z)",
+        text,
+        re.S | re.I | re.M
+    )
 
     if block:
-        text = block.group(1)
+        text = block.group(1).strip()
 
     drop_patterns = [
         r"^🔧.*$", r"^✅.*$", r"^🚀.*$", r"^🔍.*$", r"^📁.*$",
@@ -111,7 +116,9 @@ def _clean_agent_output(text: str) -> str:
 
     for line in text.splitlines():
 
-        if any(re.search(p, line.strip()) for p in drop_patterns):
+        stripped = line.strip()
+
+        if any(re.search(p, stripped) for p in drop_patterns):
             continue
 
         if "Enter a query" in line or "Exiting" in line:
@@ -126,12 +133,45 @@ def _clean_agent_output(text: str) -> str:
     return cleaned
 
 
+def _looks_like_fatal_error(text: str) -> bool:
+    if not text:
+        return False
+
+    checks = [
+        "Traceback",
+        "ModuleNotFoundError",
+        "ImportError",
+        "SyntaxError",
+        "FileNotFoundError",
+        "SystemExit",
+    ]
+
+    return any(c in text for c in checks)
+
+
+def _has_response_block(text: str) -> bool:
+    if not text:
+        return False
+    return bool(re.search(r"={5,}.*?Response.*?={5,}", text, re.I))
+
+
 def run_agent(agent_name, user_query, timeout=180):
+
+    # Intentionally retained for future UI diagnostics and richer failure reporting.
+    result = {
+        "ok": False,
+        "text": "",
+        "raw_output": "",
+        "error": "",
+        "return_code": None,
+    }
 
     module = AGENTS.get(agent_name)
 
     if not module:
-        return "❌ Agent not configured."
+        result["error"] = "agent_not_configured"
+        result["text"] = "❌ Agent not configured."
+        return result["text"]
 
     py = _python_bin()
 
@@ -158,22 +198,43 @@ def run_agent(agent_name, user_query, timeout=180):
         stdin_payload = f"{user_query}\nexit\n"
 
         out, _ = p.communicate(stdin_payload, timeout=timeout)
+        result["raw_output"] = out or ""
+        result["return_code"] = p.returncode
 
-        # ✅ Accept output even if return code is non-zero
-        if not out or not out.strip():
-            return "❌ Agent returned no output. Check logs."
+        raw_output = result["raw_output"]
+        cleaned_output = _clean_agent_output(raw_output)
+        fatal_error = _looks_like_fatal_error(raw_output)
+        has_usable_answer = bool(cleaned_output.strip())
 
-        return _clean_agent_output(out)
+        if not raw_output.strip():
+            result["error"] = "empty_output"
+            result["text"] = "❌ Agent returned no output. Check logs."
+        elif not has_usable_answer and fatal_error:
+            result["error"] = "startup_or_fatal_error"
+            result["text"] = "❌ Agent failed to start correctly. Please check module paths or environment setup."
+        elif not has_usable_answer:
+            result["error"] = "uncleanable_output"
+            result["text"] = "⚠️ Agent produced output, but no clean answer could be extracted."
+        else:
+            # Keep useful answers, even with non-zero return codes.
+            result["ok"] = True
+            result["text"] = cleaned_output
+
+        return result["text"]
 
 
     except subprocess.TimeoutExpired:
 
-        return "⏱️ Agent timeout. Try a smaller query."
+        result["error"] = "timeout"
+        result["text"] = "⏱️ The agent took too long. Try a smaller query."
+        return result["text"]
 
 
     except Exception as e:
 
-        return f"❌ System Error: {e}"
+        result["error"] = "system_error"
+        result["text"] = f"❌ System Error: {e}"
+        return result["text"]
 
 
 def save_uploads(files):
