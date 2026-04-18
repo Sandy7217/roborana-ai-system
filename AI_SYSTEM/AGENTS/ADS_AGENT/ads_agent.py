@@ -309,6 +309,10 @@ Use a professional but friendly tone.
                         response = raw_reasoning_response
                     else:
                         response = processed_response
+            process_agent_output_fn = getattr(self, "process_agent_output", None)
+            if callable(process_agent_output_fn):
+                try:
+                    response = process_agent_output_fn(query, response)
                 except (TypeError, AttributeError) as e:
                     if "NoneType" in str(e) and "subscriptable" in str(e):
                         safe_print("⚠️ Output postprocessing fallback triggered.")
@@ -318,6 +322,7 @@ Use a professional but friendly tone.
 
             if response is None:
                 response = build_ads_fallback_summary(query, data)
+                response = "I could not generate a valid ads analysis response."
             elif isinstance(response, dict):
                 response = json.dumps(response, indent=2, default=str)
             elif not isinstance(response, str):
