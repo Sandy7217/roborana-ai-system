@@ -156,18 +156,26 @@ Context:
         )
 
         choices = getattr(resp, "choices", None)
-        if not isinstance(choices, list) or len(choices) == 0:
-            print("⚠️ GPT returned empty or invalid response.")
+
+        def _safe_fallback(error_type):
             return {
                 "action": "unknown",
                 "scope": "all_time",
                 "channel": "overall",
                 "granularity": "sku",
                 "confidence": 0.0,
-                "error": "empty_response",
-                "source": "gpt_reasoner",
-                "timestamp": datetime.now().isoformat()
-        }
+                "error": error_type,
+                "source": "gpt_reasoner_fallback"
+            }
+
+        if not choices or not isinstance(choices, list):
+            print("⚠️ Invalid GPT response (choices missing)")
+            return _safe_fallback("no_choices")
+
+        if len(choices) == 0:
+            print("⚠️ Empty GPT choices")
+            return _safe_fallback("empty_choices")
+
         first_choice = choices[0]
         message = getattr(first_choice, "message", None)
         content = getattr(message, "content", None) if message else None
@@ -178,14 +186,23 @@ Context:
         # 🧩 JSON Extraction + Cleaning
         # ===============================================================
         structured = {}
-        try:
-            structured = json.loads(raw_reply)
-        except Exception:
-            match = re.search(r"\{.*\}", raw_reply, re.DOTALL)
-            if match:
-                try:
-                    structured = json.loads(match.group(0))
-                except Exception:
+
+        if not raw_reply or not isinstance(raw_reply, str):
+            print("⚠️ Empty GPT reply")
+            structured = {}
+        else:
+            try:
+                structured = json.loads(raw_reply)
+            except Exception:
+                match = re.search(r"\{.*\}", raw_reply, re.DOTALL)
+                if match:
+                    try:
+                        structured = json.loads(match.group(0))
+                    except Exception:
+                        print("⚠️ JSON extraction failed")
+                        structured = {}
+                else:
+                    print("⚠️ No JSON found in GPT reply")
                     structured = {}
         if not isinstance(structured, dict):
             structured = {}
@@ -202,9 +219,14 @@ Context:
             structured.setdefault(k, v)
 
         # Safe confidence handling
-        confidence = structured.get("confidence", 0)
+        raw_confidence = structured.get("confidence", 0.0)
+        try:
+            confidence = float(raw_confidence)
+        except Exception:
+            confidence = 0.0
+        structured["confidence"] = confidence
         if confidence < 0.6 and len(original_query.split()) > 6:
-            structured["confidence"] = confidence + 0.15
+            structured["confidence"] = min(confidence + 0.15, 1.0)
         # --- Final metadata ---
         structured["source"] = "gpt_reasoner"
         structured["timestamp"] = datetime.now().isoformat()
@@ -225,6 +247,7 @@ Context:
             "granularity": "sku",
             "confidence": 0.0,
             "error": str(e),
+            "source": "gpt_reasoner_error",
         }
 
 
