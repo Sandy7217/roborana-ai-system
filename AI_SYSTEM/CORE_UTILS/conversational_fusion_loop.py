@@ -303,6 +303,11 @@ class ConversationalFusionLoop:
             except Exception as e:
                 final_response = raw_response_text
 
+            if not final_response:
+                final_response = str(raw_response) if raw_response is not None else "⚠️ No response generated."
+            except Exception as e:
+                final_response = raw_response_text
+
             if not isinstance(final_response, str) or not final_response.strip():
                 final_response = raw_response_text if raw_response_text.strip() else "⚠️ I could not generate a stable response. Please retry."
 

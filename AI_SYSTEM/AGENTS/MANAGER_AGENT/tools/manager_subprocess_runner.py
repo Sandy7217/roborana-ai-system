@@ -39,6 +39,10 @@ def _validate_module_path(module: str) -> bool:
         __import__(module)
         return True
     except Exception:
+        try:
+            return importlib.util.find_spec(module) is not None
+        except Exception:
+            return False
         return importlib.util.find_spec(module) is not None
 
 # ------------------------------------------------

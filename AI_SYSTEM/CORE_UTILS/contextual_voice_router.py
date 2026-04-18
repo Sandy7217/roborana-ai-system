@@ -39,6 +39,7 @@ class ContextualVoiceRouter:
             "inventory": ["inventory", "stock", "quantity", "slow", "fast moving", "out of stock"],
             "finance": ["profit", "margin", "roi", "cost", "loss", "expense", "net", "gmv"],
             "ads": [
+                "ad", "ads", "advertisement", "campaign", "myntra ads", "visibility", "pla", "impression", "impressions",
                 "ad", "advertisement", "campaign", "myntra ads", "visibility", "pla", "impression", "impressions",
                 "ctr", "roas", "spend", "ad spend", "ads spend", "marketing spend", "cpc", "click", "clicks"
             ],
@@ -62,6 +63,7 @@ class ContextualVoiceRouter:
         text = user_text.lower().strip()
         matched_agent = None
         confidence = 0.0
+        ad_priority_terms = (" ads ", "ad spend", "ads spend", "marketing spend", "roas", "ctr", "cpc", "impression", "click")
 
         # 1️⃣ — Use topic hint first (from ChatBrain)
         if topic_hint:
@@ -71,7 +73,14 @@ class ContextualVoiceRouter:
                     confidence = 0.85
                     break
 
-        # 2️⃣ — Scan message keywords
+        # 2️⃣ — Priority rule for ad-metric queries
+        if not matched_agent:
+            padded = f" {text} "
+            if any(term in padded for term in ad_priority_terms):
+                matched_agent = "ads"
+                confidence = max(confidence, 0.75)
+
+        # 3️⃣ — Scan message keywords
         if not matched_agent:
             for agent, kws in self.topic_keywords.items():
                 for kw in kws:
@@ -82,7 +91,7 @@ class ContextualVoiceRouter:
                 if matched_agent:
                     break
 
-        # 3️⃣ — Use intent fallback if no keyword match
+        # 4️⃣ — Use intent fallback if no keyword match
         if not matched_agent:
             if intent in ["analyze", "query"]:
                 matched_agent = "sales"
@@ -94,7 +103,7 @@ class ContextualVoiceRouter:
                 matched_agent = "manager"
                 confidence = 0.4
 
-        # 4️⃣ — Adjust routing based on emotion or tone
+        # 5️⃣ — Adjust routing based on emotion or tone
         if emotion in ["angry", "negative", "frustrated"] and matched_agent != "manager":
             confidence -= 0.05  # slight uncertainty
         elif emotion in ["positive", "curious"]:
