@@ -13,12 +13,24 @@ os.environ["PYTHONIOENCODING"] = "utf-8"
 
 # ---------- Config ----------
 
-BASE_PATH = Path(
-    os.getenv(
-        "ROBORANA_HOME",
-        r"C:\Users\Sandeep\Desktop\roborana_ai_system\RoboRana_AI_Data"
-    )
-)
+def _resolve_base_path() -> Path:
+    env_path = os.getenv("ROBORANA_HOME")
+    if env_path:
+        return Path(env_path)
+
+    here = Path(__file__).resolve()
+    cur = here.parent
+    for _ in range(6):
+        if (cur / "AI_SYSTEM").exists():
+            return cur
+        if cur.parent == cur:
+            break
+        cur = cur.parent
+
+    return here.parent
+
+
+BASE_PATH = _resolve_base_path()
 
 OUTPUTS_DIR = BASE_PATH / "OUTPUTS"
 UPLOADS_DIR = BASE_PATH / "AI_SYSTEM" / "INTERFACE" / "UPLOADS"
@@ -178,6 +190,9 @@ def run_agent(agent_name, user_query, timeout=180):
     cmd = [py, "-m", module]
 
     env = os.environ.copy()
+    project_root = str(BASE_PATH)
+    ai_system_path = str(BASE_PATH / "AI_SYSTEM")
+    env["PYTHONPATH"] = f"{project_root};{ai_system_path};{env.get('PYTHONPATH', '')}"
     env["CLEAN_OUTPUT_MODE"] = "1"
     env["PYTHONIOENCODING"] = "utf-8"
     
@@ -211,6 +226,14 @@ def run_agent(agent_name, user_query, timeout=180):
         if not raw_output.strip():
             result["error"] = "empty_output"
             result["text"] = "❌ Agent returned no output. Check logs."
+        elif not cleaned_output.strip():
+            result["error"] = "uncleanable_output"
+            result["text"] = "⚠️ Agent produced output, but no clean answer could be extracted."
+        elif fatal_error and not cleaned_output.strip():
+            result["error"] = "startup_or_fatal_error"
+            result["text"] = "❌ Agent failed to start correctly. Please check module paths or environment setup."
+        else:
+            # Internal structured result is retained for future UI diagnostics/debug expanders.
         elif not has_usable_answer and fatal_error:
             result["error"] = "startup_or_fatal_error"
             result["text"] = "❌ Agent failed to start correctly. Please check module paths or environment setup."
@@ -430,10 +453,18 @@ if prompt and prompt.strip():
 
     with st.chat_message("assistant"):
 
+        loading_placeholder = st.empty()
+        loading_gif = BASE_PATH / "AI_SYSTEM" / "INTERFACE" / "loading.gif"
+
         with st.spinner("Thinking…"):
+            if loading_gif.exists():
+                loading_placeholder.image(str(loading_gif), width=120)
+            else:
+                loading_placeholder.markdown("🤖 Thinking…")
 
             reply = run_agent(agent, final_query)
 
+        loading_placeholder.empty()
         st.markdown(reply if reply else "_(no content)_")
 
 
